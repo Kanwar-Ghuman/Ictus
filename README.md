@@ -1,4 +1,4 @@
-# Octagon - UFC Prediction Project
+# Ictus - UFC Prediction Project
 
 ```text
                   +--------------------------------------+
