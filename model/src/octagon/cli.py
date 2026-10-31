@@ -635,6 +635,26 @@ def cmd_serve(args: argparse.Namespace, cfg: dict) -> None:
                 reload=args.reload)
 
 
+def cmd_live(args: argparse.Namespace, cfg: dict) -> None:
+    """Poll ESPN Fightcenter and publish the live card over a local WebSocket."""
+    import json
+
+    from octagon.live.gateway import run, snapshot_once
+
+    if args.once:
+        print(json.dumps(snapshot_once(args.mode, args.event_id), indent=2,
+                         ensure_ascii=False))
+        return
+    run(
+        host=args.host,
+        port=args.port,
+        interval=args.interval,
+        mode=args.mode,
+        event_id=args.event_id,
+        headed=args.headed,
+    )
+
+
 def cmd_backtest(args: argparse.Namespace, cfg: dict) -> None:
     """Paper-trading simulation over the priced validation era."""
     import matplotlib
@@ -935,6 +955,22 @@ def main() -> None:
     p.add_argument("--port", type=int, default=8000)
     p.add_argument("--reload", action="store_true", help="restart on code changes")
     p.set_defaults(func=cmd_serve)
+
+    p = sub.add_parser(
+        "live",
+        help="local WebSocket of the live UFC card (ESPN Fightcenter, no paid API)")
+    p.add_argument("--host", default="127.0.0.1")
+    p.add_argument("--port", type=int, default=8765)
+    p.add_argument("--interval", type=float, default=1.0,
+                   help="seconds between polls (1s is near-live)")
+    p.add_argument("--mode", choices=("http", "browser", "auto"), default="http",
+                   help="http polls ESPN JSON; browser intercepts the same XHR")
+    p.add_argument("--event-id", default=None, help="ESPN event id (auto-detect)")
+    p.add_argument("--headed", action="store_true",
+                   help="show Chromium when --mode browser")
+    p.add_argument("--once", action="store_true",
+                   help="print one JSON snapshot and exit")
+    p.set_defaults(func=cmd_live)
 
     args = parser.parse_args()
     args.func(args, load_config())

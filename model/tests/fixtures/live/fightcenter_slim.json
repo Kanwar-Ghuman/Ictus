@@ -1,0 +1,1490 @@
+{
+  "event": {
+    "id": "600061420",
+    "uid": "s:3301~l:3321~e:600061420",
+    "date": "2026-10-31T21:00:00.000+00:00",
+    "name": "UFC Fight Night: Moicano vs. Nolan",
+    "shortName": "UFC Fight Night"
+  },
+  "venue": {
+    "fullName": "Meta APEX",
+    "displayNameLocation": "Meta APEX, Las Vegas, NV",
+    "address": {
+      "city": "Las Vegas",
+      "state": "NV",
+      "country": "USA"
+    }
+  },
+  "cards": {
+    "main": {
+      "name": "main",
+      "displayName": "Main Card",
+      "cardSegment": "main",
+      "competitions": [
+        {
+          "id": "401921310",
+          "type": {
+            "id": "986",
+            "text": "Lightweight",
+            "abbreviation": "Lightweight"
+          },
+          "status": {
+            "clock": "0.0",
+            "displayClock": "-",
+            "period": 0,
+            "type": {
+              "id": "1",
+              "name": "STATUS_SCHEDULED",
+              "description": "Scheduled",
+              "detail": "Sat, October 31st at 8:00 PM EDT",
+              "shortDetail": "10/31 - 8:00 PM EDT",
+              "state": "pre",
+              "completed": false
+            },
+            "result": {}
+          },
+          "cardSegment": {
+            "id": "173",
+            "name": "main",
+            "description": "Main Card"
+          },
+          "matchNumber": 1,
+          "note": "Lightweight - Main Event",
+          "competitors": [
+            {
+              "id": "5144007",
+              "order": 2,
+              "winner": false,
+              "displayRecord": "11-1-0",
+              "athlete": {
+                "displayName": "Tom Nolan",
+                "fullName": "Tom Nolan",
+                "country": "Australia",
+                "flag": {
+                  "href": "https://a.espncdn.com/i/teamlogos/countries/500/aus.png",
+                  "alt": "Australia",
+                  "rel": [
+                    "country-flag"
+                  ]
+                }
+              },
+              "stats": [
+                {
+                  "name": "strikeLPM",
+                  "displayName": "Sig Strk LPM",
+                  "shortDisplayName": "Sig Strk LPM",
+                  "description": "Significant Strikes Landed Per Minute",
+                  "abbreviation": "Sig Strk LPM",
+                  "value": 4.84,
+                  "displayValue": "4.84"
+                },
+                {
+                  "name": "strikeAccuracy",
+                  "displayName": "Sig Strk Acc",
+                  "shortDisplayName": "Sig Strk Acc",
+                  "description": "Significant Strike Accuracy",
+                  "abbreviation": "Sig Strk Acc",
+                  "value": 51.76,
+                  "displayValue": "51.76"
+                },
+                {
+                  "name": "takedownAvg",
+                  "displayName": "Takedown Average",
+                  "shortDisplayName": "TK AVG",
+                  "description": "Average Takedowns Landed Per 15 Minutes",
+                  "abbreviation": "TK AVG",
+                  "value": 1.08,
+                  "displayValue": "1.08"
+                },
+                {
+                  "name": "takedownAccuracy",
+                  "displayName": "Takedown Accuracy",
+                  "shortDisplayName": "TK ACC",
+                  "description": "Takedown Accuracy",
+                  "abbreviation": "TK ACC",
+                  "value": 26.67,
+                  "displayValue": "26.67"
+                },
+                {
+                  "name": "submissionAvg",
+                  "displayName": "Submission Average",
+                  "shortDisplayName": "SUB AVG",
+                  "description": "Average Submissions Attempted Per 15 Minutes",
+                  "abbreviation": "SUB AVG",
+                  "value": 1.35,
+                  "displayValue": "1.35"
+                }
+              ],
+              "bets": {
+                "odds": [
+                  {
+                    "displayName": "Moneyline",
+                    "abbreviation": "ML",
+                    "type": "moneyline",
+                    "values": [
+                      {
+                        "odds": "+102",
+                        "link": {
+                          "rel": [
+                            "moneyline",
+                            "bets"
+                          ],
+                          "href": "https://sportsbook.draftkings.com/gateway?s=__s__&wpcid=__wpcid__&wpsrc=413&wpcn=ESPN&wpscn=Widget&wpcrn=BetSlipDeepLink&wpscid=__wpscid__&wpcrid=xx&preurl=https%3A%2F%2Fsportsbook.draftkings.com%2Fevent%2F34891968%3Foutcomes%3D0ML86906549_3",
+                          "tracking": {
+                            "campaign": "betting-integrations",
+                            "tags": {
+                              "league": "ufc",
+                              "sport": "mma",
+                              "competitionId": 401921310,
+                              "betSide": "none",
+                              "betType": "straight",
+                              "betDetails": "ML+102"
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "displayName": "By KO/TKO/DQ",
+                    "abbreviation": "KO/TKO/DQ",
+                    "type": "knockout",
+                    "values": [
+                      {
+                        "odds": "+200",
+                        "link": {
+                          "rel": [
+                            "knockout",
+                            "bets"
+                          ],
+                          "href": "https://sportsbook.draftkings.com/gateway?s=__s__&wpcid=__wpcid__&wpsrc=413&wpcn=ESPN&wpscn=Widget&wpcrn=BetSlipDeepLink&wpscid=__wpscid__&wpcrid=xx&preurl=https%3A%2F%2Fsportsbook.draftkings.com%2Fevent%2F34891968%3Foutcomes%3D0QA383273870%25232338709829_13L9034Q13Q24",
+                          "tracking": {
+                            "campaign": "betting-integrations",
+                            "tags": {
+                              "league": "ufc",
+                              "sport": "mma",
+                              "competitionId": 401921310,
+                              "betSide": "none",
+                              "betType": "straight",
+                              "betDetails": "KO/TKO/DQ+200"
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "displayName": "By Submission",
+                    "abbreviation": "SUB",
+                    "type": "submission",
+                    "values": [
+                      {
+                        "odds": "+800",
+                        "link": {
+                          "rel": [
+                            "submission",
+                            "bets"
+                          ],
+                          "href": "https://sportsbook.draftkings.com/gateway?s=__s__&wpcid=__wpcid__&wpsrc=413&wpcn=ESPN&wpscn=Widget&wpcrn=BetSlipDeepLink&wpscid=__wpscid__&wpcrid=xx&preurl=https%3A%2F%2Fsportsbook.draftkings.com%2Fevent%2F34891968%3Foutcomes%3D0QA383273871%25232338709826_13L9034Q13Q24",
+                          "tracking": {
+                            "campaign": "betting-integrations",
+                            "tags": {
+                              "league": "ufc",
+                              "sport": "mma",
+                              "competitionId": 401921310,
+                              "betSide": "none",
+                              "betType": "straight",
+                              "betDetails": "SUB+800"
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "displayName": "By Points",
+                    "abbreviation": "PTS",
+                    "type": "points",
+                    "values": [
+                      {
+                        "odds": "+650",
+                        "link": {
+                          "rel": [
+                            "points",
+                            "bets"
+                          ],
+                          "href": "https://sportsbook.draftkings.com/gateway?s=__s__&wpcid=__wpcid__&wpsrc=413&wpcn=ESPN&wpscn=Widget&wpcrn=BetSlipDeepLink&wpscid=__wpscid__&wpcrid=xx&preurl=https%3A%2F%2Fsportsbook.draftkings.com%2Fevent%2F34891968%3Foutcomes%3D0QA383273872%25232338709825_13L9034Q13Q24",
+                          "tracking": {
+                            "campaign": "betting-integrations",
+                            "tags": {
+                              "league": "ufc",
+                              "sport": "mma",
+                              "competitionId": 401921310,
+                              "betSide": "none",
+                              "betType": "straight",
+                              "betDetails": "PTS+650"
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "id": "3028863",
+              "order": 1,
+              "winner": false,
+              "displayRecord": "21-7-1",
+              "athlete": {
+                "displayName": "Renato Moicano",
+                "fullName": "Renato Moicano",
+                "country": "Brazil",
+                "flag": {
+                  "href": "https://a.espncdn.com/i/teamlogos/countries/500/bra.png",
+                  "alt": "Brazil",
+                  "rel": [
+                    "country-flag"
+                  ]
+                }
+              },
+              "stats": [
+                {
+                  "name": "strikeLPM",
+                  "displayName": "Sig Strk LPM",
+                  "shortDisplayName": "Sig Strk LPM",
+                  "description": "Significant Strikes Landed Per Minute",
+                  "abbreviation": "Sig Strk LPM",
+                  "value": 4.1,
+                  "displayValue": "4.10"
+                },
+                {
+                  "name": "strikeAccuracy",
+                  "displayName": "Sig Strk Acc",
+                  "shortDisplayName": "Sig Strk Acc",
+                  "description": "Significant Strike Accuracy",
+                  "abbreviation": "Sig Strk Acc",
+                  "value": 56.53,
+                  "displayValue": "56.53"
+                },
+                {
+                  "name": "takedownAvg",
+                  "displayName": "Takedown Average",
+                  "shortDisplayName": "TK AVG",
+                  "description": "Average Takedowns Landed Per 15 Minutes",
+                  "abbreviation": "TK AVG",
+                  "value": 1.68,
+                  "displayValue": "1.68"
+                },
+                {
+                  "name": "takedownAccuracy",
+                  "displayName": "Takedown Accuracy",
+                  "shortDisplayName": "TK ACC",
+                  "description": "Takedown Accuracy",
+                  "abbreviation": "TK ACC",
+                  "value": 40.38,
+                  "displayValue": "40.38"
+                },
+                {
+                  "name": "submissionAvg",
+                  "displayName": "Submission Average",
+                  "shortDisplayName": "SUB AVG",
+                  "description": "Average Submissions Attempted Per 15 Minutes",
+                  "abbreviation": "SUB AVG",
+                  "value": 0.56,
+                  "displayValue": "0.56"
+                }
+              ],
+              "bets": {
+                "odds": [
+                  {
+                    "displayName": "Moneyline",
+                    "abbreviation": "ML",
+                    "type": "moneyline",
+                    "values": [
+                      {
+                        "odds": "-122",
+                        "link": {
+                          "rel": [
+                            "moneyline",
+                            "bets"
+                          ],
+                          "href": "https://sportsbook.draftkings.com/gateway?s=__s__&wpcid=__wpcid__&wpsrc=413&wpcn=ESPN&wpscn=Widget&wpcrn=BetSlipDeepLink&wpscid=__wpscid__&wpcrid=xx&preurl=https%3A%2F%2Fsportsbook.draftkings.com%2Fevent%2F34891968%3Foutcomes%3D0ML86906549_1",
+                          "tracking": {
+                            "campaign": "betting-integrations",
+                            "tags": {
+                              "league": "ufc",
+                              "sport": "mma",
+                              "competitionId": 401921310,
+                              "betSide": "none",
+                              "betType": "straight",
+                              "betDetails": "ML-122"
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "displayName": "By KO/TKO/DQ",
+                    "abbreviation": "KO/TKO/DQ",
+                    "type": "knockout",
+                    "values": [
+                      {
+                        "odds": "+750",
+                        "link": {
+                          "rel": [
+                            "knockout",
+                            "bets"
+                          ],
+                          "href": "https://sportsbook.draftkings.com/gateway?s=__s__&wpcid=__wpcid__&wpsrc=413&wpcn=ESPN&wpscn=Widget&wpcrn=BetSlipDeepLink&wpscid=__wpscid__&wpcrid=xx&preurl=https%3A%2F%2Fsportsbook.draftkings.com%2Fevent%2F34891968%3Foutcomes%3D0QA383273870%25232338709820_13L9034Q11Q22",
+                          "tracking": {
+                            "campaign": "betting-integrations",
+                            "tags": {
+                              "league": "ufc",
+                              "sport": "mma",
+                              "competitionId": 401921310,
+                              "betSide": "none",
+                              "betType": "straight",
+                              "betDetails": "KO/TKO/DQ+750"
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "displayName": "By Submission",
+                    "abbreviation": "SUB",
+                    "type": "submission",
+                    "values": [
+                      {
+                        "odds": "+180",
+                        "link": {
+                          "rel": [
+                            "submission",
+                            "bets"
+                          ],
+                          "href": "https://sportsbook.draftkings.com/gateway?s=__s__&wpcid=__wpcid__&wpsrc=413&wpcn=ESPN&wpscn=Widget&wpcrn=BetSlipDeepLink&wpscid=__wpscid__&wpcrid=xx&preurl=https%3A%2F%2Fsportsbook.draftkings.com%2Fevent%2F34891968%3Foutcomes%3D0QA383273871%25232338709823_13L9034Q11Q22",
+                          "tracking": {
+                            "campaign": "betting-integrations",
+                            "tags": {
+                              "league": "ufc",
+                              "sport": "mma",
+                              "competitionId": 401921310,
+                              "betSide": "none",
+                              "betType": "straight",
+                              "betDetails": "SUB+180"
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "displayName": "By Points",
+                    "abbreviation": "PTS",
+                    "type": "points",
+                    "values": [
+                      {
+                        "odds": "+600",
+                        "link": {
+                          "rel": [
+                            "points",
+                            "bets"
+                          ],
+                          "href": "https://sportsbook.draftkings.com/gateway?s=__s__&wpcid=__wpcid__&wpsrc=413&wpcn=ESPN&wpscn=Widget&wpcrn=BetSlipDeepLink&wpscid=__wpscid__&wpcrid=xx&preurl=https%3A%2F%2Fsportsbook.draftkings.com%2Fevent%2F34891968%3Foutcomes%3D0QA383273872%25232338709824_13L9034Q11Q22",
+                          "tracking": {
+                            "campaign": "betting-integrations",
+                            "tags": {
+                              "league": "ufc",
+                              "sport": "mma",
+                              "competitionId": 401921310,
+                              "betSide": "none",
+                              "betType": "straight",
+                              "betDetails": "PTS+600"
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ],
+          "officials": [
+            {
+              "firstName": "Judge",
+              "lastName": "1",
+              "position": {
+                "id": "41",
+                "name": "Judge",
+                "displayName": "Judge",
+                "leaf": false,
+                "slug": "judge"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "prelims1": {
+      "name": "prelims1",
+      "displayName": "Prelims",
+      "cardSegment": "prelims1",
+      "competitions": [
+        {
+          "id": "401931615",
+          "type": {
+            "id": "999",
+            "text": "Featherweight",
+            "abbreviation": "Featherweight"
+          },
+          "status": {
+            "clock": "231.0",
+            "displayClock": "3:51",
+            "period": 1,
+            "type": {
+              "id": "31",
+              "name": "STATUS_IN_PROGRESS_2",
+              "description": "In Progress",
+              "detail": "R1, 3:51",
+              "shortDetail": "R1, 3:51",
+              "state": "in",
+              "completed": false
+            },
+            "result": {}
+          },
+          "cardSegment": {
+            "id": "174",
+            "name": "prelims1",
+            "description": "Prelims"
+          },
+          "matchNumber": 6,
+          "note": "Featherweight",
+          "competitors": [
+            {
+              "id": "4898914",
+              "order": 2,
+              "winner": false,
+              "displayRecord": "11-2-0",
+              "athlete": {
+                "displayName": "Dakota Hope",
+                "fullName": "Dakota Hope",
+                "country": "USA",
+                "flag": {
+                  "href": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
+                  "alt": "USA",
+                  "rel": [
+                    "country-flag"
+                  ]
+                }
+              },
+              "stats": [
+                {
+                  "name": "knockDowns",
+                  "displayName": "Knockdowns",
+                  "shortDisplayName": "Knockdowns",
+                  "description": "Knockdowns",
+                  "abbreviation": "KD",
+                  "value": 0.0,
+                  "displayValue": "0"
+                },
+                {
+                  "name": "totalStrikes",
+                  "displayName": "totalStrikes",
+                  "shortDisplayName": "totalStrikes",
+                  "description": "totalStrikes",
+                  "abbreviation": "totalStrikes",
+                  "value": 3,
+                  "displayValue": "3/8"
+                },
+                {
+                  "name": "sigStrikes",
+                  "displayName": "sigStrikes",
+                  "shortDisplayName": "sigStrikes",
+                  "description": "sigStrikes",
+                  "abbreviation": "sigStrikes",
+                  "value": 3,
+                  "displayValue": "3/8"
+                },
+                {
+                  "name": "headStrikes",
+                  "displayName": "headStrikes",
+                  "shortDisplayName": "headStrikes",
+                  "description": "headStrikes",
+                  "abbreviation": "headStrikes",
+                  "value": 1,
+                  "displayValue": "1/5"
+                },
+                {
+                  "name": "bodyStrikes",
+                  "displayName": "bodyStrikes",
+                  "shortDisplayName": "bodyStrikes",
+                  "description": "bodyStrikes",
+                  "abbreviation": "bodyStrikes",
+                  "value": 1,
+                  "displayValue": "1/2"
+                },
+                {
+                  "name": "legStrikes",
+                  "displayName": "legStrikes",
+                  "shortDisplayName": "legStrikes",
+                  "description": "legStrikes",
+                  "abbreviation": "legStrikes",
+                  "value": 1,
+                  "displayValue": "1/1"
+                },
+                {
+                  "name": "timeInControl",
+                  "displayName": "Time in Control",
+                  "description": "Time in Control",
+                  "abbreviation": "TIC",
+                  "value": 0.0,
+                  "displayValue": "0:00"
+                },
+                {
+                  "name": "takedowns",
+                  "displayName": "takedowns",
+                  "shortDisplayName": "takedowns",
+                  "description": "takedowns",
+                  "abbreviation": "takedowns",
+                  "value": 0,
+                  "displayValue": "0/0"
+                },
+                {
+                  "name": "submissions",
+                  "displayName": "Submissions",
+                  "shortDisplayName": "Submissions",
+                  "description": "Submissions",
+                  "abbreviation": "SM",
+                  "value": 0.0,
+                  "displayValue": "0"
+                }
+              ],
+              "bets": {
+                "odds": [
+                  {
+                    "displayName": "Moneyline",
+                    "abbreviation": "ML",
+                    "type": "moneyline",
+                    "values": [
+                      {
+                        "odds": "+170"
+                      }
+                    ]
+                  },
+                  {
+                    "displayName": "By KO/TKO/DQ",
+                    "abbreviation": "KO/TKO/DQ",
+                    "type": "knockout",
+                    "values": [
+                      {
+                        "odds": "+450"
+                      }
+                    ]
+                  },
+                  {
+                    "displayName": "By Submission",
+                    "abbreviation": "SUB",
+                    "type": "submission",
+                    "values": [
+                      {
+                        "odds": "+2000"
+                      }
+                    ]
+                  },
+                  {
+                    "displayName": "By Points",
+                    "abbreviation": "PTS",
+                    "type": "points",
+                    "values": [
+                      {
+                        "odds": "+400"
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "id": "5060394",
+              "order": 1,
+              "winner": false,
+              "displayRecord": "10-3-0",
+              "athlete": {
+                "displayName": "Francis Marshall",
+                "fullName": "Francis Marshall",
+                "country": "USA",
+                "flag": {
+                  "href": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
+                  "alt": "USA",
+                  "rel": [
+                    "country-flag"
+                  ]
+                }
+              },
+              "stats": [
+                {
+                  "name": "knockDowns",
+                  "displayName": "Knockdowns",
+                  "shortDisplayName": "Knockdowns",
+                  "description": "Knockdowns",
+                  "abbreviation": "KD",
+                  "value": 0.0,
+                  "displayValue": "0"
+                },
+                {
+                  "name": "totalStrikes",
+                  "displayName": "totalStrikes",
+                  "shortDisplayName": "totalStrikes",
+                  "description": "totalStrikes",
+                  "abbreviation": "totalStrikes",
+                  "value": 3,
+                  "displayValue": "3/5"
+                },
+                {
+                  "name": "sigStrikes",
+                  "displayName": "sigStrikes",
+                  "shortDisplayName": "sigStrikes",
+                  "description": "sigStrikes",
+                  "abbreviation": "sigStrikes",
+                  "value": 3,
+                  "displayValue": "3/5"
+                },
+                {
+                  "name": "headStrikes",
+                  "displayName": "headStrikes",
+                  "shortDisplayName": "headStrikes",
+                  "description": "headStrikes",
+                  "abbreviation": "headStrikes",
+                  "value": 0,
+                  "displayValue": "0/2"
+                },
+                {
+                  "name": "bodyStrikes",
+                  "displayName": "bodyStrikes",
+                  "shortDisplayName": "bodyStrikes",
+                  "description": "bodyStrikes",
+                  "abbreviation": "bodyStrikes",
+                  "value": 0,
+                  "displayValue": "0/0"
+                },
+                {
+                  "name": "legStrikes",
+                  "displayName": "legStrikes",
+                  "shortDisplayName": "legStrikes",
+                  "description": "legStrikes",
+                  "abbreviation": "legStrikes",
+                  "value": 3,
+                  "displayValue": "3/3"
+                },
+                {
+                  "name": "timeInControl",
+                  "displayName": "Time in Control",
+                  "description": "Time in Control",
+                  "abbreviation": "TIC",
+                  "value": 0.0,
+                  "displayValue": "0:00"
+                },
+                {
+                  "name": "takedowns",
+                  "displayName": "takedowns",
+                  "shortDisplayName": "takedowns",
+                  "description": "takedowns",
+                  "abbreviation": "takedowns",
+                  "value": 0,
+                  "displayValue": "0/0"
+                },
+                {
+                  "name": "submissions",
+                  "displayName": "Submissions",
+                  "shortDisplayName": "Submissions",
+                  "description": "Submissions",
+                  "abbreviation": "SM",
+                  "value": 0.0,
+                  "displayValue": "0"
+                }
+              ],
+              "bets": {
+                "odds": [
+                  {
+                    "displayName": "Moneyline",
+                    "abbreviation": "ML",
+                    "type": "moneyline",
+                    "values": [
+                      {
+                        "odds": "-205"
+                      }
+                    ]
+                  },
+                  {
+                    "displayName": "By KO/TKO/DQ",
+                    "abbreviation": "KO/TKO/DQ",
+                    "type": "knockout",
+                    "values": [
+                      {
+                        "odds": "+550"
+                      }
+                    ]
+                  },
+                  {
+                    "displayName": "By Submission",
+                    "abbreviation": "SUB",
+                    "type": "submission",
+                    "values": [
+                      {
+                        "odds": "+380"
+                      }
+                    ]
+                  },
+                  {
+                    "displayName": "By Points",
+                    "abbreviation": "PTS",
+                    "type": "points",
+                    "values": [
+                      {
+                        "odds": "+140"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ],
+          "officials": [
+            {
+              "firstName": "Judge",
+              "lastName": "1",
+              "position": {
+                "id": "41",
+                "name": "Judge",
+                "displayName": "Judge",
+                "leaf": false,
+                "slug": "judge"
+              }
+            }
+          ]
+        },
+        {
+          "id": "401928109",
+          "type": {
+            "id": "999",
+            "text": "Featherweight",
+            "abbreviation": "Featherweight"
+          },
+          "status": {
+            "clock": "91.0",
+            "displayClock": "1:31",
+            "period": 1,
+            "type": {
+              "id": "3",
+              "name": "STATUS_FINAL",
+              "description": "Final",
+              "detail": "Final",
+              "shortDetail": "Final",
+              "state": "post",
+              "completed": true
+            },
+            "result": {
+              "id": "356",
+              "name": "kotko",
+              "displayName": "KO/TKO",
+              "shortDisplayName": "KO/TKO",
+              "description": "Punch",
+              "displayDescription": "Punch",
+              "target": {
+                "id": "122",
+                "name": "head",
+                "description": "Head",
+                "displayDescription": "Head"
+              }
+            },
+            "featured": false
+          },
+          "cardSegment": {
+            "id": "174",
+            "name": "prelims1",
+            "description": "Prelims"
+          },
+          "matchNumber": 8,
+          "note": "Featherweight",
+          "competitors": [
+            {
+              "id": "5068724",
+              "order": 2,
+              "winner": false,
+              "displayRecord": "11-4-0",
+              "athlete": {
+                "displayName": "JeongYeong Lee",
+                "fullName": "JeongYeong Lee",
+                "country": "South Korea",
+                "flag": {
+                  "href": "https://a.espncdn.com/i/teamlogos/countries/500/sko.png",
+                  "alt": "South Korea",
+                  "rel": [
+                    "country-flag"
+                  ]
+                }
+              },
+              "stats": [
+                {
+                  "name": "knockDowns",
+                  "displayName": "Knockdowns",
+                  "shortDisplayName": "Knockdowns",
+                  "description": "Knockdowns",
+                  "abbreviation": "KD",
+                  "value": 0.0,
+                  "displayValue": "0"
+                },
+                {
+                  "name": "totalStrikes",
+                  "displayName": "totalStrikes",
+                  "shortDisplayName": "totalStrikes",
+                  "description": "totalStrikes",
+                  "abbreviation": "totalStrikes",
+                  "value": 10,
+                  "displayValue": "10/27"
+                },
+                {
+                  "name": "sigStrikes",
+                  "displayName": "sigStrikes",
+                  "shortDisplayName": "sigStrikes",
+                  "description": "sigStrikes",
+                  "abbreviation": "sigStrikes",
+                  "value": 9,
+                  "displayValue": "9/24"
+                },
+                {
+                  "name": "headStrikes",
+                  "displayName": "headStrikes",
+                  "shortDisplayName": "headStrikes",
+                  "description": "headStrikes",
+                  "abbreviation": "headStrikes",
+                  "value": 8,
+                  "displayValue": "8/22"
+                },
+                {
+                  "name": "bodyStrikes",
+                  "displayName": "bodyStrikes",
+                  "shortDisplayName": "bodyStrikes",
+                  "description": "bodyStrikes",
+                  "abbreviation": "bodyStrikes",
+                  "value": 0,
+                  "displayValue": "0/0"
+                },
+                {
+                  "name": "legStrikes",
+                  "displayName": "legStrikes",
+                  "shortDisplayName": "legStrikes",
+                  "description": "legStrikes",
+                  "abbreviation": "legStrikes",
+                  "value": 1,
+                  "displayValue": "1/2"
+                },
+                {
+                  "name": "timeInControl",
+                  "displayName": "Time in Control",
+                  "description": "Time in Control",
+                  "abbreviation": "TIC",
+                  "value": 2.0,
+                  "displayValue": "0:02"
+                },
+                {
+                  "name": "takedowns",
+                  "displayName": "takedowns",
+                  "shortDisplayName": "takedowns",
+                  "description": "takedowns",
+                  "abbreviation": "takedowns",
+                  "value": 0,
+                  "displayValue": "0/0"
+                },
+                {
+                  "name": "submissions",
+                  "displayName": "Submissions",
+                  "shortDisplayName": "Submissions",
+                  "description": "Submissions",
+                  "abbreviation": "SM",
+                  "value": 0.0,
+                  "displayValue": "0"
+                }
+              ],
+              "bets": {
+                "odds": [
+                  {
+                    "displayName": "Moneyline",
+                    "abbreviation": "ML",
+                    "type": "moneyline",
+                    "values": [
+                      {
+                        "odds": "-142"
+                      }
+                    ]
+                  },
+                  {
+                    "displayName": "By KO/TKO/DQ",
+                    "abbreviation": "KO/TKO/DQ",
+                    "type": "knockout",
+                    "values": [
+                      {
+                        "odds": "+120"
+                      }
+                    ]
+                  },
+                  {
+                    "displayName": "By Submission",
+                    "abbreviation": "SUB",
+                    "type": "submission",
+                    "values": [
+                      {
+                        "odds": "+800"
+                      }
+                    ]
+                  },
+                  {
+                    "displayName": "By Points",
+                    "abbreviation": "PTS",
+                    "type": "points",
+                    "values": [
+                      {
+                        "odds": "+700"
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "id": "3955577",
+              "order": 1,
+              "winner": true,
+              "displayRecord": "32-14-0",
+              "athlete": {
+                "displayName": "Julian Erosa",
+                "fullName": "Julian Erosa",
+                "country": "USA",
+                "flag": {
+                  "href": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
+                  "alt": "USA",
+                  "rel": [
+                    "country-flag"
+                  ]
+                }
+              },
+              "stats": [
+                {
+                  "name": "knockDowns",
+                  "displayName": "Knockdowns",
+                  "shortDisplayName": "Knockdowns",
+                  "description": "Knockdowns",
+                  "abbreviation": "KD",
+                  "value": 1.0,
+                  "displayValue": "1"
+                },
+                {
+                  "name": "totalStrikes",
+                  "displayName": "totalStrikes",
+                  "shortDisplayName": "totalStrikes",
+                  "description": "totalStrikes",
+                  "abbreviation": "totalStrikes",
+                  "value": 17,
+                  "displayValue": "17/28"
+                },
+                {
+                  "name": "sigStrikes",
+                  "displayName": "sigStrikes",
+                  "shortDisplayName": "sigStrikes",
+                  "description": "sigStrikes",
+                  "abbreviation": "sigStrikes",
+                  "value": 16,
+                  "displayValue": "16/27"
+                },
+                {
+                  "name": "headStrikes",
+                  "displayName": "headStrikes",
+                  "shortDisplayName": "headStrikes",
+                  "description": "headStrikes",
+                  "abbreviation": "headStrikes",
+                  "value": 15,
+                  "displayValue": "15/26"
+                },
+                {
+                  "name": "bodyStrikes",
+                  "displayName": "bodyStrikes",
+                  "shortDisplayName": "bodyStrikes",
+                  "description": "bodyStrikes",
+                  "abbreviation": "bodyStrikes",
+                  "value": 1,
+                  "displayValue": "1/1"
+                },
+                {
+                  "name": "legStrikes",
+                  "displayName": "legStrikes",
+                  "shortDisplayName": "legStrikes",
+                  "description": "legStrikes",
+                  "abbreviation": "legStrikes",
+                  "value": 0,
+                  "displayValue": "0/0"
+                },
+                {
+                  "name": "timeInControl",
+                  "displayName": "Time in Control",
+                  "description": "Time in Control",
+                  "abbreviation": "TIC",
+                  "value": 36.0,
+                  "displayValue": "0:36"
+                },
+                {
+                  "name": "takedowns",
+                  "displayName": "takedowns",
+                  "shortDisplayName": "takedowns",
+                  "description": "takedowns",
+                  "abbreviation": "takedowns",
+                  "value": 0,
+                  "displayValue": "0/2"
+                },
+                {
+                  "name": "submissions",
+                  "displayName": "Submissions",
+                  "shortDisplayName": "Submissions",
+                  "description": "Submissions",
+                  "abbreviation": "SM",
+                  "value": 0.0,
+                  "displayValue": "0"
+                }
+              ],
+              "bets": {
+                "odds": [
+                  {
+                    "displayName": "Moneyline",
+                    "abbreviation": "ML",
+                    "type": "moneyline",
+                    "values": [
+                      {
+                        "odds": "+120"
+                      }
+                    ]
+                  },
+                  {
+                    "displayName": "By KO/TKO/DQ",
+                    "abbreviation": "KO/TKO/DQ",
+                    "type": "knockout",
+                    "values": [
+                      {
+                        "odds": "+650"
+                      }
+                    ]
+                  },
+                  {
+                    "displayName": "By Submission",
+                    "abbreviation": "SUB",
+                    "type": "submission",
+                    "values": [
+                      {
+                        "odds": "+300"
+                      }
+                    ]
+                  },
+                  {
+                    "displayName": "By Points",
+                    "abbreviation": "PTS",
+                    "type": "points",
+                    "values": [
+                      {
+                        "odds": "+650"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ],
+          "officials": [
+            {
+              "firstName": "Chris",
+              "lastName": "Tognoni",
+              "position": {
+                "id": "42",
+                "name": "Referee",
+                "displayName": "Referee",
+                "leaf": false,
+                "slug": "referee"
+              }
+            },
+            {
+              "firstName": "Judge",
+              "lastName": "1",
+              "position": {
+                "id": "41",
+                "name": "Judge",
+                "displayName": "Judge",
+                "leaf": false,
+                "slug": "judge"
+              }
+            }
+          ]
+        },
+        {
+          "id": "401914106",
+          "type": {
+            "id": "972",
+            "text": "Middleweight",
+            "abbreviation": "Middleweight"
+          },
+          "status": {
+            "clock": "85.0",
+            "displayClock": "1:25",
+            "period": 2,
+            "type": {
+              "id": "3",
+              "name": "STATUS_FINAL",
+              "description": "Final",
+              "detail": "Final",
+              "shortDetail": "Final",
+              "state": "post",
+              "completed": true
+            },
+            "result": {
+              "id": "284",
+              "name": "submission",
+              "displayName": "Submission",
+              "shortDisplayName": "Sub",
+              "description": "Triangle Choke With Armbar",
+              "displayDescription": "Triangle Choke With Armbar"
+            },
+            "featured": false
+          },
+          "cardSegment": {
+            "id": "174",
+            "name": "prelims1",
+            "description": "Prelims"
+          },
+          "matchNumber": 10,
+          "note": "Middleweight",
+          "competitors": [
+            {
+              "id": "4687604",
+              "order": 2,
+              "winner": true,
+              "displayRecord": "10-3-0",
+              "athlete": {
+                "displayName": "Joe Kropschot",
+                "fullName": "Joe Kropschot",
+                "country": "USA",
+                "flag": {
+                  "href": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
+                  "alt": "USA",
+                  "rel": [
+                    "country-flag"
+                  ]
+                }
+              },
+              "stats": [
+                {
+                  "name": "knockDowns",
+                  "displayName": "Knockdowns",
+                  "shortDisplayName": "Knockdowns",
+                  "description": "Knockdowns",
+                  "abbreviation": "KD",
+                  "value": 0.0,
+                  "displayValue": "0"
+                },
+                {
+                  "name": "totalStrikes",
+                  "displayName": "totalStrikes",
+                  "shortDisplayName": "totalStrikes",
+                  "description": "totalStrikes",
+                  "abbreviation": "totalStrikes",
+                  "value": 32,
+                  "displayValue": "32/42"
+                },
+                {
+                  "name": "sigStrikes",
+                  "displayName": "sigStrikes",
+                  "shortDisplayName": "sigStrikes",
+                  "description": "sigStrikes",
+                  "abbreviation": "sigStrikes",
+                  "value": 17,
+                  "displayValue": "17/24"
+                },
+                {
+                  "name": "headStrikes",
+                  "displayName": "headStrikes",
+                  "shortDisplayName": "headStrikes",
+                  "description": "headStrikes",
+                  "abbreviation": "headStrikes",
+                  "value": 6,
+                  "displayValue": "6/13"
+                },
+                {
+                  "name": "bodyStrikes",
+                  "displayName": "bodyStrikes",
+                  "shortDisplayName": "bodyStrikes",
+                  "description": "bodyStrikes",
+                  "abbreviation": "bodyStrikes",
+                  "value": 2,
+                  "displayValue": "2/2"
+                },
+                {
+                  "name": "legStrikes",
+                  "displayName": "legStrikes",
+                  "shortDisplayName": "legStrikes",
+                  "description": "legStrikes",
+                  "abbreviation": "legStrikes",
+                  "value": 9,
+                  "displayValue": "9/9"
+                },
+                {
+                  "name": "timeInControl",
+                  "displayName": "Time in Control",
+                  "description": "Time in Control",
+                  "abbreviation": "TIC",
+                  "value": 107.0,
+                  "displayValue": "1:47"
+                },
+                {
+                  "name": "takedowns",
+                  "displayName": "takedowns",
+                  "shortDisplayName": "takedowns",
+                  "description": "takedowns",
+                  "abbreviation": "takedowns",
+                  "value": 1,
+                  "displayValue": "1/1"
+                },
+                {
+                  "name": "submissions",
+                  "displayName": "Submissions",
+                  "shortDisplayName": "Submissions",
+                  "description": "Submissions",
+                  "abbreviation": "SM",
+                  "value": 3.0,
+                  "displayValue": "3"
+                }
+              ],
+              "bets": {
+                "odds": [
+                  {
+                    "displayName": "Moneyline",
+                    "abbreviation": "ML",
+                    "type": "moneyline",
+                    "values": [
+                      {
+                        "odds": "-325"
+                      }
+                    ]
+                  },
+                  {
+                    "displayName": "By KO/TKO/DQ",
+                    "abbreviation": "KO/TKO/DQ",
+                    "type": "knockout",
+                    "values": [
+                      {
+                        "odds": "+380"
+                      }
+                    ]
+                  },
+                  {
+                    "displayName": "By Submission",
+                    "abbreviation": "SUB",
+                    "type": "submission",
+                    "values": [
+                      {
+                        "odds": "+120"
+                      }
+                    ]
+                  },
+                  {
+                    "displayName": "By Points",
+                    "abbreviation": "PTS",
+                    "type": "points",
+                    "values": [
+                      {
+                        "odds": "+400"
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "id": "5134399",
+              "order": 1,
+              "winner": false,
+              "displayRecord": "6-4-0",
+              "athlete": {
+                "displayName": "Nick Klein",
+                "fullName": "Nick Klein",
+                "country": "USA",
+                "flag": {
+                  "href": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
+                  "alt": "USA",
+                  "rel": [
+                    "country-flag"
+                  ]
+                }
+              },
+              "stats": [
+                {
+                  "name": "knockDowns",
+                  "displayName": "Knockdowns",
+                  "shortDisplayName": "Knockdowns",
+                  "description": "Knockdowns",
+                  "abbreviation": "KD",
+                  "value": 0.0,
+                  "displayValue": "0"
+                },
+                {
+                  "name": "totalStrikes",
+                  "displayName": "totalStrikes",
+                  "shortDisplayName": "totalStrikes",
+                  "description": "totalStrikes",
+                  "abbreviation": "totalStrikes",
+                  "value": 16,
+                  "displayValue": "16/37"
+                },
+                {
+                  "name": "sigStrikes",
+                  "displayName": "sigStrikes",
+                  "shortDisplayName": "sigStrikes",
+                  "description": "sigStrikes",
+                  "abbreviation": "sigStrikes",
+                  "value": 13,
+                  "displayValue": "13/34"
+                },
+                {
+                  "name": "headStrikes",
+                  "displayName": "headStrikes",
+                  "shortDisplayName": "headStrikes",
+                  "description": "headStrikes",
+                  "abbreviation": "headStrikes",
+                  "value": 8,
+                  "displayValue": "8/27"
+                },
+                {
+                  "name": "bodyStrikes",
+                  "displayName": "bodyStrikes",
+                  "shortDisplayName": "bodyStrikes",
+                  "description": "bodyStrikes",
+                  "abbreviation": "bodyStrikes",
+                  "value": 3,
+                  "displayValue": "3/5"
+                },
+                {
+                  "name": "legStrikes",
+                  "displayName": "legStrikes",
+                  "shortDisplayName": "legStrikes",
+                  "description": "legStrikes",
+                  "abbreviation": "legStrikes",
+                  "value": 2,
+                  "displayValue": "2/2"
+                },
+                {
+                  "name": "timeInControl",
+                  "displayName": "Time in Control",
+                  "description": "Time in Control",
+                  "abbreviation": "TIC",
+                  "value": 181.0,
+                  "displayValue": "3:01"
+                },
+                {
+                  "name": "takedowns",
+                  "displayName": "takedowns",
+                  "shortDisplayName": "takedowns",
+                  "description": "takedowns",
+                  "abbreviation": "takedowns",
+                  "value": 2,
+                  "displayValue": "2/2"
+                },
+                {
+                  "name": "submissions",
+                  "displayName": "Submissions",
+                  "shortDisplayName": "Submissions",
+                  "description": "Submissions",
+                  "abbreviation": "SM",
+                  "value": 0.0,
+                  "displayValue": "0"
+                }
+              ],
+              "bets": {
+                "odds": [
+                  {
+                    "displayName": "Moneyline",
+                    "abbreviation": "ML",
+                    "type": "moneyline",
+                    "values": [
+                      {
+                        "odds": "+260"
+                      }
+                    ]
+                  },
+                  {
+                    "displayName": "By KO/TKO/DQ",
+                    "abbreviation": "KO/TKO/DQ",
+                    "type": "knockout",
+                    "values": [
+                      {
+                        "odds": "+1000"
+                      }
+                    ]
+                  },
+                  {
+                    "displayName": "By Submission",
+                    "abbreviation": "SUB",
+                    "type": "submission",
+                    "values": [
+                      {
+                        "odds": "+550"
+                      }
+                    ]
+                  },
+                  {
+                    "displayName": "By Points",
+                    "abbreviation": "PTS",
+                    "type": "points",
+                    "values": [
+                      {
+                        "odds": "+900"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ],
+          "officials": [
+            {
+              "firstName": "Dan",
+              "lastName": "Miragliotta",
+              "position": {
+                "id": "42",
+                "name": "Referee",
+                "displayName": "Referee",
+                "leaf": false,
+                "slug": "referee"
+              }
+            },
+            {
+              "firstName": "Judge",
+              "lastName": "1",
+              "position": {
+                "id": "41",
+                "name": "Judge",
+                "displayName": "Judge",
+                "leaf": false,
+                "slug": "judge"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "meta": {
+    "lastUpdatedAt": "2026-10-31T23:42:08Z",
+    "firstPlayWallClock": "2026-10-31T21:07:04Z",
+    "lastPlayWallClock": "2026-10-31T23:42:08Z",
+    "gameState": "in"
+  }
+}

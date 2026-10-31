@@ -23,6 +23,11 @@ dependencies = [
     "uvicorn[standard]>=0.32",
 ]
 
+[project.optional-dependencies]
+live = [
+    "playwright>=1.48",
+]
+
 [dependency-groups]
 dev = [
     "pytest>=8.0",
