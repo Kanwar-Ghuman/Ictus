@@ -51,6 +51,5 @@ Winner markets only. Method, round, and parlay contracts are skipped.
 | `demo` | Real demo-exchange orders. Needs a Kalshi demo key. |
 | `live` | Production orders. Type `yes`. The cap cannot be exceeded. |
 
-The bot can spend nothing. **No proven edge over Kalshi.** Live mode can lose the whole limit.
 
 [Setup and safety](model/docs/kalshi_trading.md) · [model evidence](model/docs/trading_model_readiness.md)
