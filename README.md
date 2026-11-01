@@ -2,7 +2,7 @@
 
 ![Ictus](ictus-logo.png)
 
-UFC model that can trade fight-winner contracts on Kalshi.
+UFC model that can trade fights live on Kalshi.
 
 </div>
 
