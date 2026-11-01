@@ -6,6 +6,24 @@ UFC model that can trade fight-winner contracts on Kalshi.
 
 </div>
 
+## How it runs
+
+```mermaid
+flowchart LR
+  A[Fight history] --> B[Features]
+  B --> C[Winner / method / round]
+  C --> D[Frozen card]
+  D --> G[Bot]
+  E[ESPN live] --> G
+  F[Kalshi book] --> G
+  G --> H{p beats ask?}
+  H -->|yes| I[One order]
+  H -->|no| J[Skip]
+  I --> K[Ledger]
+```
+
+Picks are frozen before the event. The bot then watches ESPN and the Kalshi winner book and buys only when the model price still clears fees and depth.
+
 ## Kalshi bot
 
 One command starts the ESPN fight feed, the bot, and the dashboard.
@@ -20,13 +38,9 @@ One command starts the ESPN fight feed, the bot, and the dashboard.
 Open [http://localhost:3000](http://localhost:3000), set a spend limit, press **Start**.
 Ctrl+C in that terminal stops everything.
 
-### What it does
-
-- Matches tonight’s ESPN card to frozen model picks and each Kalshi `KXUFCFIGHT` winner market
+- Matches tonight’s ESPN card to frozen picks and each Kalshi `KXUFCFIGHT` winner market
 - Builds predictions on the page if none exist yet
-- Buys only when model probability beats the Kalshi ask after fees and book depth
 - One order attempt per fight (or per round-break with `--in-fight`)
-- Live Kalshi book over their WebSocket; fight state over the local ESPN feed
 - Hard event budget; a stuck or unclear order pauses the session
 
 Winner markets only. Method, round, and parlay contracts are skipped.
@@ -39,8 +53,4 @@ Winner markets only. Method, round, and parlay contracts are skipped.
 
 The bot can spend nothing. **No proven edge over Kalshi.** Live mode can lose the whole limit.
 
-Setup, keys, and every safety rule: [kalshi_trading.md](model/docs/kalshi_trading.md) · [model evidence](model/docs/trading_model_readiness.md)
-
-## Model
-
-Skill-only winner, method, and round. Picks are frozen before the event, then graded after. Odds and sentiment stay out of the win probability.
+[Setup and safety](model/docs/kalshi_trading.md) · [model evidence](model/docs/trading_model_readiness.md)
