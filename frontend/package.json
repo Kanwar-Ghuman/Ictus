@@ -1,15 +1,14 @@
 {
   "name": "frontend",
   "version": "0.1.0",
-  "description": "Next.js UI over the read-only Octagon prediction API.",
+  "description": "Local dashboard for the Ictus Kalshi UFC trading bot.",
   "private": true,
   "license": "MIT",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -H 127.0.0.1",
     "build": "next build",
-    "start": "next start",
-    "lint": "eslint",
-    "snapshot": "node scripts/snapshot-api.mjs"
+    "start": "next start -H 127.0.0.1",
+    "lint": "eslint"
   },
   "dependencies": {
     "next": "16.2.12",

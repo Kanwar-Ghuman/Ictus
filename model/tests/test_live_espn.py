@@ -120,3 +120,23 @@ def test_fingerprint_changes_when_the_live_clock_ticks():
     second = espn.parse_fightcenter(payload)
 
     assert schema.fingerprint(first) != schema.fingerprint(second)
+
+
+def test_missing_source_time_does_not_become_receipt_time():
+    payload = _payload()
+    payload["meta"].pop("lastUpdatedAt", None)
+    snapshot = espn.parse_fightcenter(payload)
+    result = schema.envelope(snapshot, source="espn_fightcenter", seq=1)
+    assert result["meta"]["espn_updated_at"] is None
+    assert result["meta"]["captured_at"]
+
+
+def test_unknown_or_postponed_bout_is_never_scheduled():
+    payload = _payload()
+    raw = payload["cards"]["prelims1"]["competitions"][0]
+    raw["status"]["type"] = {"state": "mystery"}
+    parsed = espn.parse_fightcenter(payload)
+    assert next(b for b in parsed.fights if b.bout_id == raw["id"]).status == "unknown"
+    raw["status"]["type"] = {"state": "pre", "name": "STATUS_POSTPONED"}
+    parsed = espn.parse_fightcenter(payload)
+    assert next(b for b in parsed.fights if b.bout_id == raw["id"]).status == "unavailable"

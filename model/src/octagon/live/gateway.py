@@ -20,21 +20,96 @@ from octagon.live.schema import EventSnapshot, envelope, error_envelope
 VIEWER = """<!doctype html>
 <html lang="en">
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Octagon live</title>
-<body style="font-family:ui-sans-serif;background:#111;color:#eee;margin:24px">
-<h1>Octagon live</h1>
-<pre id="out">connecting…</pre>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; font-family: ui-sans-serif, system-ui, sans-serif;
+         background: #0b0b0c; color: #f3f3f3; }
+  header { padding: 20px 24px 8px; }
+  header p { margin: 4px 0 0; color: #9a9aa2; font-size: 13px; }
+  .live { margin: 16px 24px; padding: 20px; border: 1px solid #2a2a30;
+          border-radius: 12px; background: #141417; }
+  .live.idle { opacity: .7; }
+  .badge { display: inline-block; background: #c81e1e; color: white;
+           font-size: 11px; font-weight: 700; letter-spacing: .08em;
+           padding: 3px 8px; border-radius: 999px; }
+  .clock { font-variant-numeric: tabular-nums; font-size: 28px;
+           font-weight: 700; margin: 8px 0 16px; }
+  .row { display: grid; grid-template-columns: 1fr auto 1fr; gap: 16px;
+         align-items: start; }
+  .name { font-size: 22px; font-weight: 650; }
+  .sub { color: #9a9aa2; font-size: 13px; margin-top: 4px; }
+  .stat { font-variant-numeric: tabular-nums; font-size: 15px; margin-top: 8px; }
+  .vs { align-self: center; color: #6d6d75; font-weight: 700; }
+  .list { margin: 8px 24px 32px; }
+  .bout { display: grid; grid-template-columns: 90px 1fr auto 1fr;
+          gap: 12px; padding: 10px 0; border-top: 1px solid #23232a;
+          font-size: 14px; }
+  .status { color: #9a9aa2; }
+  .status.in_progress { color: #ff4d4d; font-weight: 700; }
+  .status.final { color: #8bd48b; }
+  .right { text-align: right; }
+</style>
+<header>
+  <h1 id="event">Octagon live</h1>
+  <p id="meta">connecting…</p>
+</header>
+<section id="live" class="live idle">waiting for a live bout</section>
+<section class="list" id="card"></section>
 <script>
-const out = document.getElementById('out');
+const liveEl = document.getElementById('live');
+const cardEl = document.getElementById('card');
+const eventEl = document.getElementById('event');
+const metaEl = document.getElementById('meta');
+function stats(f) {
+  const s = f.stats || {};
+  if (s.sigStrikes) {
+    return 'sig ' + s.sigStrikes + ' · td ' + (s.takedowns || '0') +
+           ' · ctrl ' + (s.timeInControl || '0:00');
+  }
+  return f.odds || '';
+}
+function render(body) {
+  if (!body.success) { metaEl.textContent = body.error || 'error'; return; }
+  const m = body.meta || {};
+  eventEl.textContent = m.event_name || 'Octagon live';
+  metaEl.textContent = (m.venue || '') + ' · seq ' + m.seq + ' · ' + (m.captured_at || '');
+  const fights = body.data || [];
+  const live = fights.find(b => b.status === 'in_progress');
+  if (!live) {
+    liveEl.className = 'live idle';
+    liveEl.textContent = 'no bout in progress';
+  } else {
+    liveEl.className = 'live';
+    const clock = live.clock ? ('R' + live.round + '  ' + live.clock) : ('R' + live.round);
+    liveEl.innerHTML =
+      '<span class="badge">LIVE</span>' +
+      '<div class="clock">' + clock + ' · ' + (live.weight_class || '') + '</div>' +
+      '<div class="row">' +
+        '<div><div class="name">' + live.fighter_a.name + '</div>' +
+        '<div class="sub">' + (live.fighter_a.record || '') + ' · ' +
+          (live.fighter_a.odds || '') + '</div>' +
+        '<div class="stat">' + stats(live.fighter_a) + '</div></div>' +
+        '<div class="vs">VS</div>' +
+        '<div class="right"><div class="name">' + live.fighter_b.name + '</div>' +
+        '<div class="sub">' + (live.fighter_b.record || '') + ' · ' +
+          (live.fighter_b.odds || '') + '</div>' +
+        '<div class="stat">' + stats(live.fighter_b) + '</div></div>' +
+      '</div>';
+  }
+  cardEl.innerHTML = fights.map(b => {
+    const result = b.winner ? (b.winner + (b.method ? ' · ' + b.method : '')) : '';
+    return '<div class="bout"><div class="status ' + b.status + '">' + b.status +
+      '</div><div>' + b.fighter_a.name + '</div><div>' + (b.clock ? ('R' + b.round + ' ' + b.clock) : '') +
+      '</div><div class="right">' + (result || b.fighter_b.name) + '</div></div>';
+  }).join('');
+}
 const sock = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://')
   + location.host + '/ws');
-sock.onmessage = (event) => {
-  const body = JSON.parse(event.data);
-  out.textContent = JSON.stringify(body, null, 2);
-};
-sock.onclose = () => { out.textContent += '\\n[disconnected]'; };
+sock.onmessage = (event) => render(JSON.parse(event.data));
+sock.onclose = () => { metaEl.textContent = 'disconnected'; };
 </script>
-</body>
 </html>
 """
 
@@ -138,13 +213,10 @@ async def _poll(collector: Collector, hub: Hub, interval: float) -> None:
     try:
         while True:
             message = await asyncio.to_thread(_collect, collector, hub)
-            previous = (
-                None if hub.latest is None
-                else hub.latest.get("meta", {}).get("fingerprint")
-            )
-            current = (message.get("meta") or {}).get("fingerprint")
-            if hub.latest is None or current != previous or not message["success"]:
-                await hub.publish(message)
+            # Publish successful polls too: an unchanged card is a heartbeat,
+            # and event-only changes must reach consumers. The envelope keeps
+            # source time separate so a heartbeat cannot refresh stale data.
+            await hub.publish(message)
             await asyncio.sleep(interval)
     except asyncio.CancelledError:
         raise

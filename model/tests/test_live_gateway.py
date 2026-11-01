@@ -88,3 +88,14 @@ def test_envelope_is_stable_enough_to_skip_unchanged_ticks():
     second = schema.envelope(snap, source="espn_fightcenter", seq=2)
     assert schema.fingerprint(snap) == schema.fingerprint(snap)
     assert first["data"] == second["data"]
+
+
+def test_unchanged_feed_publishes_heartbeats():
+    app = gateway.create_app(_FixedCollector(), interval=0.01)
+    with TestClient(app) as client:
+        with client.websocket_connect("/ws") as ws:
+            first = ws.receive_json()
+            second = ws.receive_json()
+            assert second["data"] == first["data"]
+            assert second["meta"]["seq"] > first["meta"]["seq"]
+            assert second["meta"]["captured_at"] >= first["meta"]["captured_at"]

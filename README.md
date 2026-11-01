@@ -1,5 +1,29 @@
 # Ictus - UFC Prediction Project
 
+## Kalshi trading bot
+
+One command starts the fight feed, the bot and the dashboard:
+
+```bash
+./ictus.sh paper              # practice, no money
+./ictus.sh live 5             # real money; the bot can never spend more than $5 per event
+./ictus.sh paper --in-fight   # also bet between rounds
+```
+
+Open http://localhost:3000, enter how much the bot may spend, and press Start.
+It finds the event, the prediction card, each fight and its Kalshi market by
+itself; if tonight has no predictions yet, the page offers to generate them.
+Ctrl+C in that terminal stops everything.
+
+The bot bets only when the model's probability beats the Kalshi price by a
+safety margin, so it may spend nothing. **No model guarantees a profit**, and
+nothing here shows a proven edge over Kalshi; real-money mode can lose its whole
+limit. One-time setup (dashboard token, Kalshi API key), recovery, and every
+safety rule: [setup and operation](model/docs/kalshi_trading.md) ·
+[model evidence](model/docs/trading_model_readiness.md).
+
+## Prediction pipeline
+
 ```text
                   +--------------------------------------+
                   | Historical fights and fighter data   |

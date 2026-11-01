@@ -1,6 +1,7 @@
 """Deterministic lineage checks for tuned artifacts and replayed features."""
 
 import hashlib
+from datetime import date
 
 import numpy as np
 import pandas as pd
@@ -65,3 +66,64 @@ def verify_artifact_snapshot(df: pd.DataFrame, artifact: dict) -> None:
             "artifact. Run `octagon build-features`, then `octagon train` before "
             "predicting a card."
         )
+
+
+def _artifact_date(value: object, label: str) -> str:
+    """Read a verifiable ISO date without inventing provenance for old artifacts."""
+    try:
+        if not isinstance(value, str) or date.fromisoformat(value).isoformat() != value:
+            raise ValueError
+    except ValueError:
+        raise SystemExit(
+            f"The artifact has no valid {label}. Run `octagon train` without "
+            "--reuse-params at the intended training cutoff to record provenance."
+        ) from None
+    return value
+
+
+def verify_reused_parameter_cutoff(artifact: dict, through: str) -> str:
+    """Prevent later-tuned hyperparameters from being relabeled as an earlier fit."""
+    tuned_through = _artifact_date(
+        artifact.get("params_tuned_through"), "hyperparameter tuning cutoff")
+    if tuned_through > through:
+        raise SystemExit(
+            f"Reused hyperparameters were tuned through {tuned_through}, later than "
+            f"the requested training cutoff {through}. Run `octagon train` without "
+            "--reuse-params to tune using only the requested history."
+        )
+    return tuned_through
+
+
+def verify_evaluation_artifact(df: pd.DataFrame, artifact: dict,
+                               train_end: str) -> None:
+    """Require frozen research tuning and matching data before scoring any holdout.
+
+    Walk-forward estimators alone do not make an evaluation out of sample:
+    calibration, blend weights, and hyperparameters must also precede the
+    research split. Legacy card prediction remains compatible, but an
+    untracked artifact cannot support a new research performance claim.
+    """
+    through = _artifact_date(artifact.get("through"), "training cutoff")
+    if artifact.get("params_reused") and not artifact.get("params_tuned_through"):
+        raise SystemExit(
+            "The artifact's reused hyperparameters have no recorded tuning cutoff. "
+            "Run `octagon train` without --reuse-params before research evaluation."
+        )
+    tuned_through = _artifact_date(
+        artifact.get("params_tuned_through"), "hyperparameter tuning cutoff")
+    for label, cutoff in (("Calibration and blend", through),
+                          ("Hyperparameter tuning", tuned_through)):
+        if cutoff > train_end:
+            raise SystemExit(
+                f"{label} extends through {cutoff}, after the research training cutoff "
+                f"{train_end}. This artifact cannot produce a holdout report. Run "
+                f"`octagon train --through {train_end}` without --reuse-params first."
+            )
+    if (artifact.get("feature_fingerprint_version") != 1
+            or not artifact.get("feature_fingerprint")):
+        raise SystemExit(
+            "The artifact has no supported feature fingerprint for research evaluation. "
+            "Run `octagon build-features`, then `octagon train` without --reuse-params "
+            "at the research training cutoff."
+        )
+    verify_artifact_snapshot(df, artifact)

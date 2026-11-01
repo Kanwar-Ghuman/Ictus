@@ -37,5 +37,10 @@ next-env.d.ts
 **/.env
 !**/.env.example
 
+# Kalshi credentials and local trading journals are never source artifacts.
+*.pem
+*.key
+model/trading-state/
+
 # OS
 .DS_Store

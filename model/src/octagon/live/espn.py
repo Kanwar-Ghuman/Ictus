@@ -6,7 +6,6 @@ in the browser; we read the same JSON the page already fetches. No paid API.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from typing import Any
 
 from octagon.live.schema import BoutSnapshot, EventSnapshot, FighterSnapshot
@@ -39,13 +38,14 @@ def parse_fightcenter(payload: dict[str, Any]) -> EventSnapshot:
     for card in cards.values():
         for raw in card.get("competitions") or []:
             fights.append(_parse_bout(raw))
-    captured = meta.get("lastUpdatedAt") or datetime.now(timezone.utc).isoformat()
+    # Receipt time is supplied by the gateway. Never manufacture source freshness.
+    captured = meta.get("lastUpdatedAt")
     return EventSnapshot(
         event_id=str(event.get("id") or ""),
         name=str(event.get("name") or ""),
         venue=venue.get("displayNameLocation") or venue.get("fullName"),
         status=_event_status(meta.get("gameState"), fights),
-        captured_at=str(captured),
+        captured_at=str(captured) if captured else None,
         fights=tuple(fights),
     )
 
@@ -57,7 +57,16 @@ def _event_status(game_state: str | None, fights: list[BoutSnapshot]) -> str:
         return "in_progress"
     if fights and all(bout.status == "final" for bout in fights):
         return "final"
-    return "scheduled"
+    if fights and all(bout.status == "scheduled" for bout in fights):
+        return "scheduled"
+    return "unknown"
+
+
+def _bout_status(status_type: dict[str, Any]) -> str:
+    name = str(status_type.get("name") or "").upper()
+    if any(word in name for word in ("CANCEL", "POSTPON", "SUSPEND", "DELAY", "TBD")):
+        return "unavailable"
+    return STATUS_BY_STATE.get(status_type.get("state"), "unknown")
 
 
 def _parse_bout(raw: dict[str, Any]) -> BoutSnapshot:
@@ -78,7 +87,7 @@ def _parse_bout(raw: dict[str, Any]) -> BoutSnapshot:
         weight_class=_weight_class(raw),
         card_segment=((raw.get("cardSegment") or {}).get("description") or "Card"),
         match_number=_maybe_int(raw.get("matchNumber")),
-        status=STATUS_BY_STATE.get(status_type.get("state"), "scheduled"),
+        status=_bout_status(status_type),
         round=_maybe_int(status_block.get("period")),
         clock=_clock(status_block.get("displayClock")),
         method=_text(result.get("displayName")),
@@ -87,6 +96,7 @@ def _parse_bout(raw: dict[str, Any]) -> BoutSnapshot:
         referee=_referee(raw.get("officials") or []),
         fighter_a=fighters[0],
         fighter_b=fighters[1],
+        status_detail=_text(status_type.get("name")),
     )
 
 

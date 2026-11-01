@@ -60,7 +60,10 @@ def evaluate_split(df: pd.DataFrame, train_end: str, valid_end: str,
     if artifact_path.exists():
         import joblib
 
+        from octagon.lineage import verify_evaluation_artifact
+
         artifact = joblib.load(artifact_path)
+        verify_evaluation_artifact(df, artifact, train_end)
     windows = semiannual_windows(lo, min(hi, str(eval_df["date"].max())))
     lr_pred = logistic.walk_forward_predict(
         df, windows,
@@ -159,7 +162,7 @@ def evaluate_split(df: pd.DataFrame, train_end: str, valid_end: str,
 
     _append_experiment_log(reports_dir, split, rows)
     return _render_markdown(split, lo, hi, rows, coefs, plot_path, windows,
-                            finish_section)
+                            finish_section, artifact=artifact)
 
 
 def _append_experiment_log(reports_dir: Path, split: str, rows: list[dict]) -> None:
@@ -170,7 +173,7 @@ def _append_experiment_log(reports_dir: Path, split: str, rows: list[dict]) -> N
 
 
 def _render_markdown(split, lo, hi, rows, coefs, plot_path, windows,
-                     finish_section: str = "") -> str:
+                     finish_section: str = "", artifact: dict | None = None) -> str:
     lines = [
         f"# Evaluation report — {split} split",
         "",
@@ -178,6 +181,12 @@ def _render_markdown(split, lo, hi, rows, coefs, plot_path, windows,
         f"Fights dated ({lo}, {hi}]. Walk-forward windows: "
         + ", ".join(f"{a}->{b}" for a, b in windows),
         "",
+        *([
+            f"Verified artifact: calibration/blend through {artifact['through']}; "
+            f"reusable GBM hyperparameters tuned through {artifact['params_tuned_through']}; "
+            f"historical feature fingerprint `{artifact['feature_fingerprint']}`.",
+            "",
+        ] if artifact is not None else []),
         "| model | n | accuracy | log loss | Brier | ROC AUC | ECE | note |",
         "|---|---|---|---|---|---|---|---|",
     ]

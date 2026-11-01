@@ -34,6 +34,8 @@ class BoutSnapshot:
     referee: str | None
     fighter_a: FighterSnapshot
     fighter_b: FighterSnapshot
+    # ESPN's raw status name, e.g. STATUS_END_OF_ROUND during a break.
+    status_detail: str | None = None
 
 
 @dataclass(frozen=True)
@@ -42,7 +44,7 @@ class EventSnapshot:
     name: str
     venue: str | None
     status: str
-    captured_at: str
+    captured_at: str | None
     fights: tuple[BoutSnapshot, ...]
 
 

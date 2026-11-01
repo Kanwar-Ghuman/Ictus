@@ -17,9 +17,9 @@ jobs:
       - uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.11"
-      - run: uv sync
-      - run: uv run ruff check src tests
-      - run: uv run pytest -q
+      - run: uv sync --locked --extra trading
+      - run: uv run --extra trading ruff check src tests
+      - run: uv run --extra trading pytest -q
 
   frontend:
     runs-on: ubuntu-latest

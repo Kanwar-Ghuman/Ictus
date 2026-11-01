@@ -1,6 +1,5 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter+Tight:wght@800&display=swap");
 @import "tailwindcss";
-
 @theme {
   --color-shell: #ffffff;
   --color-paper: #ffffff;
@@ -25,9 +24,6 @@ body { background: #fff; color: var(--color-ink); font-family: var(--font-sans);
 a, button, summary { -webkit-tap-highlight-color: transparent; }
 :focus-visible { outline: 2px solid var(--color-ink); outline-offset: 5px; }
 .site-width { width: min(100% - 80px, 1280px); margin-inline: auto; }
-.site-nav { display:flex; gap:32px; font-size:13px; color:var(--color-ash); }
-.site-nav a { padding:25px 0; border-bottom:2px solid transparent; }
-.site-nav a[aria-current=page] { border-color:var(--color-ink); color:var(--color-ink); }
 .octagon-brand { display:flex; align-items:center; flex-shrink:0; gap:6px; }
 .octagon-mark { display:flex; align-items:center; gap:10px; color:inherit; text-decoration:none; }
 .octagon-logo { display:block; width:90px; height:63px; }
@@ -35,46 +31,5 @@ a, button, summary { -webkit-tap-highlight-color: transparent; }
 .brand-name { font-family:"Inter Tight","Helvetica Neue",Arial,sans-serif; font-weight:800; font-size:32px; letter-spacing:-.04em; line-height:.9; color:#000; -webkit-font-smoothing:antialiased; }
 .logo-motion-toggle { display:grid; place-items:center; width:24px; height:24px; padding:0; border:0; background:transparent; color:var(--color-mist); font-size:11px; cursor:pointer; }
 .logo-motion-toggle:hover { color:var(--color-ink); }
-.event-hero { display:grid; grid-template-columns:1.2fr 1fr; border-bottom:1px solid var(--color-line); min-height:290px; align-items:center; gap:48px; padding-bottom:28px; }
-.event-title { font-size:clamp(34px,4.7vw,64px); max-width:750px; margin:18px 0 20px; }
-.event-meta { color:var(--color-ash); font-size:13px; line-height:1.8; }
-.event-art { position:relative; align-self:stretch; min-height:240px; background:#f3f2ef; overflow:hidden; }
-.event-art video { height:100%; width:100%; position:absolute; object-fit:cover; }
-.motion-caption { position:absolute; bottom:13px; left:18px; font-size:9px; letter-spacing:.13em; text-transform:uppercase; color:#454741; }
-.motion-control { position:absolute; bottom:9px; right:12px; background:#ffffffdd; border:1px solid #ccc; padding:5px 9px; font-size:11px; cursor:pointer; }
-.headline-note { display:flex; flex-wrap:wrap; align-items:baseline; gap:8px 18px; padding-top:20px; font-size:13px; }
-.headline-note strong { font-weight:500; }
-.metrics-strip { display:flex; flex-wrap:wrap; align-items:center; gap:20px 38px; border-bottom:1px solid var(--color-line); padding:0 0 25px; }
-.card-navigation { display:flex; flex-wrap:wrap; gap:24px; border-bottom:1px solid var(--color-line); font-size:13px; margin-bottom:32px; }
-.card-navigation a { padding:12px 0; }
-.card-navigation a:first-child { border-bottom:2px solid var(--color-ink); }
-.card-navigation span { color:var(--color-mist); font-size:11px; margin-left:7px; }
-.bout-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0 28px; align-items:start; }
-.bout-card { min-width:0; border-bottom:1px solid var(--color-line); padding:22px 0 0; }
-.bout-heading { display:flex; justify-content:space-between; flex-wrap:wrap; gap:6px; min-height:29px; font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:var(--color-ash); }
-.bout-role { color:var(--color-blood); }
-.faceoff { display:grid; grid-template-columns:minmax(0,1fr) 24px minmax(0,1fr); align-items:start; gap:6px; padding:15px 0 18px; }
-.fighter-side { min-width:0; text-align:center; }
-.portrait-frame { width:min(100%,142px); aspect-ratio:1; margin:0 auto 15px; background:#f2f2ef; border-radius:50%; overflow:hidden; }
-.portrait { width:100%; height:100%; object-fit:cover; object-position:top center; }
-.fighter-name { font-weight:600; font-size:16px; line-height:1.3; letter-spacing:-.025em; min-height:42px; overflow-wrap:anywhere; }
-.fighter-nickname { color:var(--color-mist); font-size:11px; min-height:19px; margin-top:3px; }
-.fighter-record { font-family:var(--font-mono); font-size:11px; color:var(--color-ash); margin-top:5px; }
-.versus { align-self:start; margin-top:58px; font-family:Georgia,serif; font-style:italic; font-size:16px; color:#8c8f87; text-align:center; }
-.probability-row { display:flex; justify-content:space-between; align-items:baseline; font-size:11px; color:var(--color-mist); margin-bottom:9px; }
-.probability-row strong { font-size:20px; font-weight:500; letter-spacing:-.04em; color:var(--color-ink); font-variant-numeric:tabular-nums; }
-.probability-row .favored { color:var(--color-blood); }
-.pick-line { padding:15px 0 13px; min-height:72px; }
-.pick-line p { font-size:13px; line-height:1.5; margin-top:5px; font-weight:500; }
-.bout-details summary { display:flex; justify-content:space-between; padding:11px 0 16px; font-size:11px; color:var(--color-ash); cursor:pointer; list-style:none; }
-.bout-details summary::-webkit-details-marker { display:none; }
-.bout-details summary::after { content:'+'; font-size:15px; line-height:1; }
-.bout-details[open] summary::after { content:'−'; }
-.bout-details[open] { padding-bottom:18px; }
-.section-heading { display:flex; align-items:baseline; justify-content:space-between; gap:20px; margin-top:34px; padding-bottom:6px; }
-.section-heading h2 { font-size:24px; }
-section[id] { scroll-margin-top:95px; }
-@media (min-width:1450px) { .portrait-frame { width:155px; } }
-@media (max-width:1000px) { .bout-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .event-hero { gap:25px; } .site-width { width:calc(100% - 48px); } }
-@media (max-width:640px) { .site-width { width:calc(100% - 36px); } .site-nav { gap:18px; font-size:12px; } .octagon-logo { width:76px; height:54px; } .brand-name { font-size:26px; } .event-hero { grid-template-columns:1fr; gap:22px; padding-bottom:24px; } .event-art { min-height:210px; } .event-title { font-size:39px; } .bout-grid { grid-template-columns:1fr; } .portrait-frame { width:142px; } .fighter-name { min-height:47px; font-size:18px; } .faceoff { padding:18px 10px; } .bout-card { padding-top:22px; } .metrics-strip { gap:20px 25px; } .metrics-intro { flex-basis:100%; } .section-heading { gap:12px; } .section-heading p { max-width:140px; text-align:right; } }
 @media (prefers-reduced-motion:reduce) { *, *::before, *::after { scroll-behavior:auto !important; animation:none !important; transition:none !important; } }
+@media (max-width:640px) { .site-width { width:calc(100% - 32px); } .octagon-logo { width:76px; height:54px; } .brand-name { font-size:26px; } }

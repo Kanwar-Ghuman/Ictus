@@ -1,0 +1,38 @@
+date: '2026-10-31'
+event: 'UFC Fight Night: Moicano vs. Nolan'
+fights:
+- fighter1: Renato Moicano
+  fighter2: Tom Nolan
+  weight_class: Lightweight
+  title_fight: false
+  rounds: 5
+  section: null
+  odds: null
+- fighter1: Randy Brown
+  fighter2: Jacobe Smith
+  weight_class: Welterweight
+  title_fight: false
+  rounds: 3
+  section: null
+  odds: null
+- fighter1: Ode' Osbourne
+  fighter2: Cody Durden
+  weight_class: Flyweight
+  title_fight: false
+  rounds: 3
+  section: null
+  odds: null
+- fighter1: Yana Santos
+  fighter2: Luana Santos
+  weight_class: Women's Bantamweight
+  title_fight: false
+  rounds: 3
+  section: null
+  odds: null
+- fighter1: Jean-Paul Lebosnoyani
+  fighter2: Farman Hasanov
+  weight_class: Welterweight
+  title_fight: false
+  rounds: 3
+  section: null
+  odds: null

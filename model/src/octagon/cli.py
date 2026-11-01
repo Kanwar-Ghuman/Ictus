@@ -115,11 +115,15 @@ def cmd_train(args: argparse.Namespace, cfg: dict) -> None:
               f"(train_end={train_end}). Do not quote these params as a holdout result.")
 
     reused = None
+    params_tuned_through = through
     if getattr(args, "reuse_params", False):
         previous = resolve_path("artifacts/gbm.joblib")
         if not previous.exists():
             raise SystemExit("--reuse-params needs an existing artifacts/gbm.joblib")
         reused = joblib.load(previous)
+        from octagon.lineage import verify_reused_parameter_cutoff
+
+        params_tuned_through = verify_reused_parameter_cutoff(reused, through)
         params, cv_loss = dict(reused["params"]), float(reused.get("cv_log_loss", float("nan")))
         print(f"Reusing GBM hyperparameters from the previous artifact "
               f"(tuned {reused.get('n_trials', '?')} trials, CV log loss {cv_loss:.4f}): "
@@ -185,6 +189,9 @@ def cmd_train(args: argparse.Namespace, cfg: dict) -> None:
         debut_params = dict(reused["debut_params"])
         print(f"\nReusing debut-model hyperparameters: {debut_params}")
     else:
+        # This cutoff covers both reusable GBM parameter sets. A newly tuned
+        # debut head must not inherit the older main-model tuning date.
+        params_tuned_through = through
         print(f"\nTuning debut model ({args.trials} trials) on fights where "
               f"either fighter has < {debut.DEBUT_THRESHOLD} UFC fights...")
         debut_params, debut_cv_loss = debut.tune(df, windows, n_trials=args.trials,
@@ -260,6 +267,7 @@ def cmd_train(args: argparse.Namespace, cfg: dict) -> None:
         "seed": seed,
         "n_trials": (reused.get("n_trials") if reused is not None else args.trials),
         "params_reused": reused is not None,
+        "params_tuned_through": params_tuned_through,
         "debut_params": debut_params,
         # The estimator itself would be stale as soon as new fights arrive.
         # Prediction refits it on current point-in-time history when enabled.
@@ -635,6 +643,19 @@ def cmd_serve(args: argparse.Namespace, cfg: dict) -> None:
                 reload=args.reload)
 
 
+def cmd_train_inplay(args: argparse.Namespace, cfg: dict) -> None:
+    from octagon.inplay.train import run
+
+    result = run(resolve_path(cfg["data"]["db_path"]), resolve_path(cfg["data"]["greco_dir"]),
+                 resolve_path("reports"), resolve_path("artifacts/inplay.json"),
+                 resolve_path("reports/inplay_eval.md"))
+    for row in result["table"]:
+        if row["after_round"] == "all":
+            print(f"{row['split']:5} ({row['prior_source']}): log loss {row['prior_log_loss']:.4f} -> "
+                  f"{row['log_loss']:.4f}, accuracy {row['prior_accuracy']:.1%} -> {row['accuracy']:.1%}")
+    print(f"Selected C={result['selected_C']}. Wrote {result['artifact']} and reports/inplay_eval.md")
+
+
 def cmd_live(args: argparse.Namespace, cfg: dict) -> None:
     """Poll ESPN Fightcenter and publish the live card over a local WebSocket."""
     import json
@@ -955,6 +976,10 @@ def main() -> None:
     p.add_argument("--port", type=int, default=8000)
     p.add_argument("--reload", action="store_true", help="restart on code changes")
     p.set_defaults(func=cmd_serve)
+
+    sub.add_parser("train-inplay",
+                   help="fit + evaluate the between-rounds model (artifacts/inplay.json)"
+                   ).set_defaults(func=cmd_train_inplay)
 
     p = sub.add_parser(
         "live",
