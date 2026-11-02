@@ -1,4 +1,10 @@
-"""Conservative, deterministic buy-only sizing in dollars (never binary floats)."""
+"""Deterministic buy-only sizing in dollars (never binary floats).
+
+Budget use is card-wide: every fight still to be decided gets an equal slice of
+the money left for its phase, and a fight's bet is its slice scaled by how
+strong the edge is (its Kelly fraction relative to ``full_slice_kelly``). Money
+from fights the bot passes on flows to the fights that are left.
+"""
 
 from dataclasses import dataclass
 from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal, InvalidOperation
@@ -27,12 +33,28 @@ def money(value: object) -> Decimal:
 
 @dataclass(frozen=True)
 class RiskPolicy:
-    # These are policy haircuts, NOT statistical confidence intervals.
-    probability_haircut: Decimal = Decimal("0.05")
-    min_net_edge: Decimal = Decimal("0.04")
-    kelly_fraction: Decimal = Decimal("0.25")
-    max_order_fraction: Decimal = Decimal("0.05")
-    max_bout_fraction: Decimal = Decimal("0.10")
+    # Optional extra margin subtracted from the model probability (0 = trust it).
+    probability_haircut: Decimal = Decimal("0")
+    # Minimum expected profit per $1 contract after the reserved taker fee.
+    min_net_edge: Decimal = Decimal("0.03")
+    # A bet with this Kelly fraction gets exactly one slice; stronger edges get
+    # more, up to max_slice_multiple slices.
+    full_slice_kelly: Decimal = Decimal("0.10")
+    max_slice_multiple: Decimal = Decimal("2")
+    # Hard ceiling on all spending on one fight (every phase), share of budget.
+    max_bout_fraction: Decimal = Decimal("0.40")
+    # With in-fight trading on, pre-fight bets may use at most 1 - this share.
+    inplay_reserve: Decimal = Decimal("0.30")
+    # A missed or partly filled order is retried while the edge lasts.
+    max_prefight_attempts: int = 6
+    prefight_retry_seconds: float = 30.0
+    max_break_attempts: int = 3
+    break_retry_seconds: float = 4.0
+    # Live rounds reprice off the clock and can buy again while the edge lasts.
+    max_live_attempts: int = 12
+    live_retry_seconds: float = 1.0
+    # Both fighters need this many UFC fights for skill-model forecasts (0 = allow debuts).
+    min_ufc_fights: int = 1
     max_spread: Decimal = Decimal("0.08")
     max_contracts: int = 1000
     max_feed_age_seconds: float = 10.0
@@ -69,6 +91,42 @@ def taker_fee(price: Decimal, count: int, multiplier: Decimal) -> Decimal:
     )
 
 
+def edge_of(probability: Decimal, price: Decimal, fee_multiplier: Decimal,
+            policy: RiskPolicy) -> tuple[Decimal, Decimal, Decimal]:
+    """(per-contract cost incl. fee, net edge, Kelly fraction) for buying at price."""
+    # Reserve a cent-rounded fee for *each* contract: splitting fills must not
+    # exceed the reservation due to exchange fee rounding.
+    unit_cost = price + taker_fee(price, 1, fee_multiplier)
+    edge = max(ZERO, probability - policy.probability_haircut) - unit_cost
+    kelly = max(ZERO, edge / (ONE - unit_cost)) if unit_cost < ONE else ZERO
+    return unit_cost, edge, kelly
+
+
+def bout_allowance(*, kelly: Decimal, budget: Decimal, remaining: Decimal,
+                   phase_available: Decimal, phase_pool: Decimal, open_bouts: int,
+                   phase_bout_spent: Decimal, bout_spent: Decimal,
+                   policy: RiskPolicy, unit_cost: Decimal = ZERO) -> Decimal:
+    """Dollars this fight may still use now.
+
+    phase_pool: money for fights still open in this phase (unspent phase money
+    plus what this phase already put on those open fights), split evenly.
+    A fight with an edge and nothing on it yet in this phase may always buy one
+    contract, so small budgets spread over long cards still trade.
+    """
+    if open_bouts < 1 or kelly <= ZERO:
+        return ZERO
+    conviction = min(policy.max_slice_multiple, kelly / policy.full_slice_kelly)
+    target = phase_pool / open_bouts * conviction
+    if phase_bout_spent <= ZERO:
+        target = max(target, unit_cost)
+    return max(ZERO, min(
+        remaining,
+        phase_available,
+        budget * policy.max_bout_fraction - bout_spent,
+        target - phase_bout_spent,
+    ))
+
+
 def size_candidate(
     *,
     side: str,
@@ -76,36 +134,23 @@ def size_candidate(
     price: Decimal,
     depth: Decimal,
     spread: Decimal,
-    budget: Decimal,
-    remaining: Decimal,
-    bout_spent: Decimal,
+    allowance: Decimal,
     fee_multiplier: Decimal,
     policy: RiskPolicy,
 ) -> Candidate | None:
-    """Buy only at displayed executable depth; never force spending a budget."""
-    values = (probability, price, depth, spread, budget, remaining, bout_spent, fee_multiplier)
+    """Buy only at displayed executable depth, within the dollar allowance."""
+    values = (probability, price, depth, spread, allowance, fee_multiplier)
     if any(not v.is_finite() for v in values):
         return None
     if side not in {"yes", "no"} or not ZERO < probability < ONE or not ZERO < price < ONE:
         return None
-    if min(depth, budget, remaining, fee_multiplier) <= ZERO or bout_spent < ZERO:
+    if min(depth, allowance, fee_multiplier) <= ZERO:
         return None
     if not ZERO <= spread <= policy.max_spread:
         return None
-    # Reserve a cent-rounded fee for *each* contract: splitting fills must not
-    # exceed the reservation due to exchange fee rounding.
-    unit_cost = price + taker_fee(price, 1, fee_multiplier)
-    conservative_p = max(ZERO, probability - policy.probability_haircut)
-    edge = conservative_p - unit_cost
+    unit_cost, edge, _ = edge_of(probability, price, fee_multiplier, policy)
     if unit_cost >= ONE or edge < policy.min_net_edge:
         return None
-    kelly = max(ZERO, edge / (ONE - unit_cost)) * policy.kelly_fraction
-    allowance = min(
-        remaining,
-        budget * policy.max_order_fraction,
-        max(ZERO, budget * policy.max_bout_fraction - bout_spent),
-        budget * kelly,
-    )
     count = min(
         policy.max_contracts,
         int(depth.to_integral_value(rounding=ROUND_FLOOR)),

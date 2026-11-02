@@ -24,8 +24,6 @@ def feature_frame(df: pd.DataFrame, market_aware: bool = False,
     if include_raw:
         cols += sorted(c for c in df.columns
                        if c.startswith(("f1_", "f2_")) and c not in _NON_FEATURE)
-    # Assemble in one concat (not column-by-column inserts, which fragment
-    # the frame and spam PerformanceWarnings on wide feature sets).
     parts = [df[cols].astype(float)]
     context = pd.DataFrame({
         "title_fight": df["title_fight"].astype(float),
@@ -34,9 +32,6 @@ def feature_frame(df: pd.DataFrame, market_aware: bool = False,
         "weight_class": df["weight_class"].astype("category"),
     }, index=df.index)
     parts.append(context)
-    # Symmetric pairing features (bout_*) are swap-invariant, exactly like
-    # the context block above — so _flip leaves them alone and they are safe
-    # for every model here.
     bout_cols = sorted(c for c in df.columns if c.startswith("bout_"))
     if bout_cols:
         parts.append(df[bout_cols].astype(float))
@@ -44,15 +39,13 @@ def feature_frame(df: pd.DataFrame, market_aware: bool = False,
         p1 = 1.0 / df["f1_odds"].astype(float)
         p2 = 1.0 / df["f2_odds"].astype(float)
         parts.append(pd.DataFrame(
-            {"diff_market": (p1 - p2) / (p1 + p2)},  # fair1 - fair2, vig removed
+            {"diff_market": (p1 - p2) / (p1 + p2)},
             index=df.index))
     return pd.concat(parts, axis=1)
 
 
 def _flip(X: pd.DataFrame) -> pd.DataFrame:
-    """The corner swap in feature space: diffs negate, f1_*/f2_* exchange,
-    context stays. Every symmetry guarantee in this module rests on this
-    function being the exact mirror of swap_corners."""
+    """Corner swap: diffs negate, f1_* and f2_* exchange. Context and bout_* stay."""
     out = X.copy()
     for col in X.columns:
         if col.startswith("diff_"):
@@ -70,13 +63,9 @@ def _augmented(X: pd.DataFrame, y: np.ndarray) -> tuple[pd.DataFrame, np.ndarray
 
 
 class SeedEnsemble:
-    """Average of identically-specified models trained with different seeds.
+    """Mean of the same model trained on different seeds.
 
-    A single GBM's predictions carry seed luck (bagging draws, feature
-    sampling). Averaging a handful of seeds removes that variance without
-    touching bias — the closest thing to a free improvement in ML.
-    Exposes predict_proba so the symmetrized prediction code can't tell
-    it apart from a single model.
+    predict_proba matches LGBMClassifier so callers can ignore which they hold.
     """
 
     def __init__(self, members: list[LGBMClassifier]):

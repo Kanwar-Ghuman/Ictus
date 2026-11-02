@@ -5,6 +5,7 @@ from decimal import Decimal as D
 
 import pytest
 
+from octagon.inplay import live as live_mod
 from octagon.inplay.live import BREAK_STATUS, break_inputs, parse_stats
 from octagon.inplay.model import FEATURES, InplayModel
 from octagon.live.espn import _parse_bout
@@ -129,7 +130,7 @@ def test_prefight_price_is_captured_while_scheduled_and_persisted(tmp_path):
     assert D(reloaded.prefight["WIN-0"]["p_f1"]) == D("0.495")
 
 
-def test_in_fight_trades_once_per_break_only_after_totals_settle(tmp_path):
+def test_in_fight_trades_in_break_only_after_totals_settle_with_bounded_retries(tmp_path):
     engine, _ = in_fight_engine(tmp_path)
     engine.update_feed(feed())
     engine.start()
@@ -146,8 +147,14 @@ def test_in_fight_trades_once_per_break_only_after_totals_settle(tmp_path):
     orders = engine.ledger.orders(engine.session_id)
     assert [o["bout_id"] for o in orders] == ["1:r1"]
     engine.tick()
-    assert "Already attempted" in engine.decisions[0]["reason"]
+    assert "Waiting" in engine.decisions[0]["reason"]
     assert len(engine.ledger.orders(engine.session_id)) == 1
+    for _ in range(engine.policy.max_break_attempts + 2):
+        engine.last_attempt.clear()
+        engine.tick()
+    keys = [o["bout_id"] for o in engine.ledger.orders(engine.session_id)]
+    assert len(keys) <= engine.policy.max_break_attempts
+    assert all(k == "1:r1" or k.startswith("1:r1:") for k in keys)
 
 
 def test_late_in_the_break_is_refused(tmp_path):
@@ -162,14 +169,14 @@ def test_late_in_the_break_is_refused(tmp_path):
     assert not engine.ledger.orders(engine.session_id)
 
 
-def test_no_trade_during_live_action_or_after_final_round(tmp_path):
+def test_live_action_without_a_clock_or_after_the_final_round_does_not_trade(tmp_path):
     engine, _ = in_fight_engine(tmp_path)
     engine.update_feed(feed())
     engine.start()
     engine.tick()
     engine.update_feed(break_feed(1, detail="STATUS_IN_PROGRESS_2"))
     engine.tick()
-    assert "Not in a between-rounds break" in engine.decisions[0]["reason"]
+    assert "clock" in engine.decisions[0]["reason"].lower()
     engine.update_feed(break_feed(3))
     settle_break(engine, round_k=3)
     engine.tick()
@@ -265,3 +272,103 @@ def test_monotonic_in_strike_lead():
     base = model.predict_one(stats(), stats(), 0.5, 1, 3)
     ahead = model.predict_one(stats(sig_l=25), stats(), 0.5, 1, 3)
     assert ahead > base
+
+
+def progress_model():
+    coef = dict.fromkeys(FEATURES, 0.0)
+    coef["sig_l_x_frac"] = 1.0
+    return InplayModel(scale=dict.fromkeys(FEATURES, 1.0), coef=coef, meta={})
+
+
+def test_live_progress_rises_as_the_clock_runs_and_swaps_corners():
+    model = progress_model()
+    ahead, behind = stats(sig_l=30), stats(sig_l=10)
+    early = model.predict_progress(ahead, behind, 0.5, 0.5, 3)
+    late = model.predict_progress(ahead, behind, 0.5, 2.5, 3)
+    swapped = model.predict_progress(behind, ahead, 0.5, 2.5, 3)
+    assert late > early
+    assert early + model.predict_progress(behind, ahead, 0.5, 0.5, 3) == pytest.approx(1.0, abs=1e-12)
+    assert late + swapped == pytest.approx(1.0, abs=1e-12)
+    for elapsed, scheduled in ((0, 3), (3, 3), (1.5, 4), (float("nan"), 3)):
+        with pytest.raises(ValueError):
+            model.predict_progress(ahead, behind, 0.5, elapsed, scheduled)
+
+
+def live_feed(clock="2:30", round_k=1, detail="STATUS_IN_PROGRESS"):
+    message = break_feed(round_k, detail=detail)
+    message["data"][0]["clock"] = clock
+    return message
+
+
+def test_fight_progress_uses_the_round_clock_and_completed_breaks():
+    bout = live_feed(clock="2:30", round_k=2)["data"][0]
+    elapsed, s1, s2, phase = live_mod.fight_progress(
+        bout, "Alpha Fighter", "Bravo Fighter", normalized_name)
+    assert phase == "live" and elapsed == pytest.approx(1.5)
+    assert s1["sig_l"] == 15 and s2["sig_l"] == 3
+    breaking = break_feed(1)["data"][0]
+    elapsed, _, _, phase = live_mod.fight_progress(
+        breaking, "Alpha Fighter", "Bravo Fighter", normalized_name)
+    assert phase == "break" and elapsed == 1
+    for change in ({"clock": None}, {"clock": "-"}, {"clock": "6:00"}, {"status": "final"}):
+        with pytest.raises(ValueError):
+            live_mod.fight_progress(bout | change, "Alpha Fighter", "Bravo Fighter", normalized_name)
+
+
+def one_contract(exchange):
+    exchange.get_orderbook = lambda ticker: {"orderbook_fp": {
+        "yes_dollars": [["0.4900", "1.00"]], "no_dollars": [["0.5000", "1.00"]]}}
+
+
+def live_price_model():
+    """Same strike lead is cheap early and expensive only once the clock is late."""
+    coef = dict.fromkeys(FEATURES, 0.0)
+    coef["sig_l_x_frac"] = 0.15
+    return InplayModel(scale=dict.fromkeys(FEATURES, 1.0), coef=coef, meta={})
+
+
+def test_live_clock_updates_the_price_then_trades_once_a_second(tmp_path):
+    engine, exchange = in_fight_engine(tmp_path, live_price_model())
+    one_contract(exchange)
+    engine.update_feed(feed())
+    engine.start()
+    engine.tick()
+    engine.update_feed(live_feed(clock="4:30", round_k=1))
+    engine.tick()
+    assert engine.decisions[0]["action"] == "skip"
+    assert "No edge" in engine.decisions[0]["reason"]
+    assert engine.decisions[0]["p_f1"] < 0.6
+    assert not engine.ledger.orders(engine.session_id)
+    engine.update_feed(live_feed(clock="0:30", round_k=3))
+    engine.tick()
+    decision = engine.decisions[0]
+    assert decision["action"] == "paper" and decision["phase"] == "live round 3"
+    assert decision["p_f1"] > 0.7
+    assert [o["bout_id"] for o in engine.ledger.orders(engine.session_id)] == ["1:l3"]
+    engine.tick()
+    assert "Waiting" in engine.decisions[0]["reason"]
+    assert engine.decisions[0]["p_f1"] > 0.7
+    engine.last_attempt["1:l3"] -= engine.policy.live_retry_seconds
+    engine.tick()
+    keys = sorted(o["bout_id"] for o in engine.ledger.orders(engine.session_id))
+    assert keys == ["1:l3", "1:l3:2"]
+    for _ in range(engine.policy.max_live_attempts + 4):
+        engine.last_attempt.clear()
+        engine.tick()
+    orders = engine.ledger.orders(engine.session_id)
+    assert len(orders) == engine.policy.max_live_attempts
+    assert all(o["bout_id"] == "1:l3" or o["bout_id"].startswith("1:l3:") for o in orders)
+    spent = sum(D(o["cost_dollars"]) + D(o["reserved_dollars"]) for o in orders)
+    assert spent <= D(request()["budget_dollars"]) * engine.policy.max_bout_fraction
+
+
+def test_in_fight_checks_run_on_the_live_retry_cadence(tmp_path):
+    import inspect
+
+    from octagon.trading.service import decide
+
+    engine, _ = in_fight_engine(tmp_path)
+    assert engine.decision_interval == engine.policy.live_retry_seconds == 1.0
+    plain = TradingEngine(engine.ledger, Exchange())
+    assert plain.decision_interval == 2.0
+    assert "decision_interval" in inspect.getsource(decide)

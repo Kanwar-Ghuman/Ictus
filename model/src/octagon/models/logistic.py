@@ -41,12 +41,7 @@ def make_pipeline(C: float = 1.0) -> Pipeline:
 
 def recency_weights(dates: pd.Series, as_of: str,
                     half_life_years: float | None) -> np.ndarray | None:
-    """Exponential decay sample weights: a fight `half_life_years` before
-    `as_of` counts half as much as one fought yesterday.
-
-    The sport drifts — the 2008 meta is not the 2024 meta — and with 8k rows
-    the model can afford to lean on the recent ones. None means uniform.
-    """
+    """Exponential sample weights. None means every fight counts equally."""
     if not half_life_years:
         return None
     age_days = (pd.Timestamp(as_of) - pd.to_datetime(dates)).dt.days.to_numpy(dtype=float)

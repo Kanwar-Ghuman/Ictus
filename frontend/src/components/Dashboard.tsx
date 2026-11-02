@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 type Decision = {
   ticker: string; bout: string; action: "skip" | "paper" | "demo" | "live"; reason: string;
-  side?: string; probability?: number; price_dollars?: string; contracts?: number;
+  side?: string; probability?: number; p_f1?: number; price_dollars?: string; contracts?: number;
   cost_dollars?: string; edge?: number; phase?: string;
 };
 type Order = {
@@ -64,12 +64,16 @@ const cents = (value: number | null) => value === null || !Number.isFinite(value
 const pct = (value: number | null) => value === null || !Number.isFinite(value) ? "—" : `${Math.round(value * 100)}%`;
 const num = (value: string | null | undefined) => (value === null || value === undefined || value === "" ? null : Number(value));
 
-const REASONS: Array<[RegExp, string]> = [
-  [/net edge/i, "Watching — the price isn't good enough yet"],
-  [/already has an order attempt/i, "Already bet on this fight"],
-  [/Already attempted during the break/i, "Already bet during this break"],
+const REASONS: Array<[RegExp, string | ((m: RegExpMatchArray) => string)]> = [
+  [/^No edge: model (\d+)% on (.+?) vs (\d+)¢ all-in/,
+    (m) => `Watching — model gives ${m[2]} ${m[1]}%, Kalshi wants ${m[3]}¢ (not cheap enough yet)`],
+  [/budget share is used/i, "Bet placed — this fight's share of the budget is in"],
+  [/Waiting \d+s before trying again/i, "Order didn't fully fill — trying again shortly"],
+  [/Already tried \d+ times/i, "Done trying on this fight"],
+  [/Spread \d+¢ too wide/i, "Waiting — Kalshi's buy/sell gap is too wide"],
+  [/Not enough contracts offered/i, "Waiting — not enough contracts for sale"],
   [/started or (finished|unavailable)|observed started/i, "Fight started — no more pre-fight bets"],
-  [/only between rounds|Not in a between-rounds break/i, "Fight is live — the bot only bets between rounds"],
+  [/Live clock/i, "Fight is live — waiting for the round clock"],
   [/waiting for round totals/i, "Between rounds — letting the stats settle"],
   [/Too late in the break/i, "Missed this break"],
   [/Final round finished/i, "Last round done — waiting for the result"],
@@ -80,7 +84,13 @@ const REASONS: Array<[RegExp, string]> = [
   [/Insufficient account cash/i, "Not enough cash in your Kalshi account"],
   [/budget exhausted/i, "Spending limit reached"],
 ];
-const plain = (reason: string) => REASONS.find(([pattern]) => pattern.test(reason))?.[1] ?? reason;
+const plain = (reason: string) => {
+  for (const [pattern, text] of REASONS) {
+    const match = reason.match(pattern);
+    if (match) return typeof text === "string" ? text : text(match);
+  }
+  return reason;
+};
 
 const ORDER_STATUS: Record<string, string> = {
   paper_filled: "Simulated", filled: "Filled", demo_filled: "Filled", unfilled: "Not filled",
@@ -183,7 +193,7 @@ export function Dashboard() {
         <div>
           <div className="flex flex-wrap gap-2">
             <Pill tone={live ? "bad" : "neutral"}>{live ? `Real money · cap ${usd(status.max_budget_dollars)}` : status.mode === "demo" ? "Kalshi demo" : "Practice (paper) mode"}</Pill>
-            {status.in_fight_enabled && <Pill>Bets between rounds too</Pill>}
+            {status.in_fight_enabled && <Pill>Bets during the fight</Pill>}
             {eventOver ? <Pill tone="muted">Event finished</Pill>
               : <Pill tone={status.feed_connected ? "good" : "bad"}>{status.feed_connected ? "Fight feed live" : "Fight feed offline"}</Pill>}
             <Pill tone={status.market_connected ? "good" : "muted"}>{status.market_connected ? "Kalshi prices live" : "Kalshi prices idle"}</Pill>
@@ -300,7 +310,11 @@ function FightCard({ fight, liveStatus, decision, orders, running }: {
     if (yesAsk === null || yesBid === null) return null;
     return forF1 === yesIsF1 ? yesAsk : 1 - yesBid; // cost to buy that fighter
   };
-  const model = (forF1: boolean) => fight.p_f1 === null ? null : forF1 ? fight.p_f1 : 1 - fight.p_f1;
+  const quoted = decision?.p_f1;
+  const model = (forF1: boolean) => {
+    const base = quoted ?? fight.p_f1;
+    return base === null || base === undefined ? null : forF1 ? base : 1 - base;
+  };
   const other = (name: string | null) => name === fight.f1 ? fight.f2 : fight.f1;
   const chip = liveStatus === "final" ? ["Final", "muted"] : liveStatus === "in_progress" ? ["Live", "bad"]
     : fight.include ? ["Upcoming", "good"] : ["Not betting", "muted"];
@@ -317,7 +331,12 @@ function FightCard({ fight, liveStatus, decision, orders, running }: {
     <article className="border border-line p-5">
       <div className="flex items-center justify-between gap-3">
         <Pill tone={chip[1] as PillTone}>{chip[0]}{liveStatus === "in_progress" && fight.round ? ` · R${fight.round}` : ""}</Pill>
-        {fight.p_f1 !== null && <p className="text-xs text-ash">Model pick: <strong className="text-ink">{fight.p_f1 >= 0.5 ? fight.f1 : fight.f2}</strong></p>}
+        {(quoted ?? fight.p_f1) != null && (
+          <p className="text-xs text-ash">
+            {quoted === undefined ? "Model pick" : "Live price"}:{" "}
+            <strong className="text-ink">{(quoted ?? fight.p_f1 ?? 0) >= 0.5 ? fight.f1 : fight.f2}</strong>
+          </p>
+        )}
       </div>
       <div className="mt-4 space-y-3">
         {[true, false].map((isF1) => {
@@ -383,7 +402,7 @@ function BotOffline() {
       <p className="mt-3 text-ash">Start everything with one command from the project folder, then this page connects on its own.</p>
       <Command label="Practice (no money)" command="./ictus.sh paper" />
       <Command label="Real money with a $5 cap" command="./ictus.sh live 5" />
-      <p className="mt-6 text-sm text-ash">Add <code className="font-mono">--in-fight</code> to also bet between rounds. Press Ctrl+C in that terminal to stop everything.</p>
+      <p className="mt-6 text-sm text-ash">Add <code className="font-mono">--in-fight</code> to reprice from the live fight and bet while it is happening. Press Ctrl+C in that terminal to stop everything.</p>
     </div>
   );
 }

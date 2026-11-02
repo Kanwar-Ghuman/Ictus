@@ -1,4 +1,4 @@
-"""Skill baselines. Every model has to beat these or it added nothing."""
+"""Reference predictors used in evaluation reports."""
 
 import numpy as np
 import pandas as pd
@@ -8,16 +8,11 @@ from octagon.features.elo import expected_score
 
 
 def coin_flip(df: pd.DataFrame) -> np.ndarray:
-    """The floor. Accuracy 0.5, log loss 0.693 by construction."""
     return np.full(len(df), 0.5)
 
 
 def better_record(df: pd.DataFrame) -> np.ndarray:
-    """Pick whoever has the better win %, then more wins; ties -> 0.5.
-
-    A picking rule, not a probability model — it only ever says 0/0.5/1,
-    so read its accuracy and ignore its (terrible) log loss.
-    """
+    """Better win percentage, then more wins. Ties stay at 0.5."""
     diff = df["diff_win_pct"].to_numpy(dtype=float)
     tiebreak = df["diff_wins"].to_numpy(dtype=float)
     decided = np.where(np.isnan(diff) | (diff == 0), tiebreak, diff)

@@ -70,9 +70,25 @@ class InplayModel:
         return 1 / (1 + np.exp(-self.logit_f1(x)))
 
     def predict_one(self, f1: dict, f2: dict, prior: float, round_k: int, scheduled: int) -> float:
-        if not 0 < prior < 1 or not 1 <= round_k < scheduled or scheduled not in (3, 5):
+        if isinstance(round_k, bool) or not isinstance(round_k, int):
             raise ValueError("In-play inputs out of the trained range")
-        x = feature_frame(pd.DataFrame([f1]), pd.DataFrame([f2]), [prior], [round_k], [scheduled])
+        return self.predict_progress(f1, f2, prior, round_k, scheduled)
+
+    def predict_progress(self, f1: dict, f2: dict, prior: float,
+                         elapsed_rounds: float, scheduled: int) -> float:
+        """P(f1 wins) after ``elapsed_rounds`` of a 3- or 5-round fight.
+
+        End-of-round snapshots pass an integer. A live round passes a fraction
+        (completed rounds plus how far the five-minute clock has run) so the
+        same antisymmetric weights move as the fight does.
+        """
+        if isinstance(elapsed_rounds, bool) or not isinstance(elapsed_rounds, (int, float)):
+            raise ValueError("In-play inputs out of the trained range")
+        elapsed = float(elapsed_rounds)
+        if (not 0 < prior < 1 or not math.isfinite(elapsed) or not 0 < elapsed < scheduled
+                or scheduled not in (3, 5)):
+            raise ValueError("In-play inputs out of the trained range")
+        x = feature_frame(pd.DataFrame([f1]), pd.DataFrame([f2]), [prior], [elapsed], [scheduled])
         p = float(self.predict(x)[0])
         if not math.isfinite(p):
             raise ValueError("Non-finite in-play probability")

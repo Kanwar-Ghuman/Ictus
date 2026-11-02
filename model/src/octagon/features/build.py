@@ -312,7 +312,6 @@ def bout_features(f1: dict, f2: dict) -> dict[str, float | None]:
     ]
 
     return {
-        # Finish appetite on both sides of the cage.
         "bout_finish_involvement": pair("finish_involvement"),
         "bout_finish_max": pair("finish_involvement", "max"),
         "bout_ko_rate": pair("ko_win_rate"),
@@ -325,31 +324,20 @@ def bout_features(f1: dict, f2: dict) -> dict[str, float | None]:
         "bout_ko_end_rate_l5": pair("ko_end_rate_l5"),
         "bout_sub_end_rate_l5": pair("sub_end_rate_l5"),
         "bout_dec_end_rate_l5": pair("dec_end_rate_l5"),
-        # Whose fights actually end early — and can either man be put away.
         "bout_avg_end_round": pair("avg_end_round"),
         "bout_r1_pace": (sum(r1_pace) / len(r1_pace)) if r1_pace else None,
         "bout_koed_rate": pair_fragility("times_koed"),
         "bout_subbed_rate": pair_fragility("times_subbed"),
-        # Combined action: knockdowns and submission attempts per unit time.
         "bout_kd15": pair("kd15_l5"),
         "bout_sub15": pair("sub15_l5"),
         "bout_slpm": pair("slpm_l5"),
         "bout_ctrl_pct": pair("ctrl_pct_l5"),
-        # Mismatch finishes. Two 1550 grinders and a 1700 vs 1400 both have
-        # diff_elo that can be small or large, but only abs(gap) says "this
-        # is a blowout waiting to happen". Swap-invariant by construction.
         "bout_elo_gap": gap("elo"),
-        # Uncertainty shape: the greener man and the longer layoff drive how
-        # much either model should trust itself at all.
         "bout_min_fights": pair("n_fights", "min"),
         "bout_max_layoff_days": pair("layoff_days", "max"),
         "bout_max_age": pair("age", "max"),
     }
 
-
-# ---------------------------------------------------------------------------
-# The chronological sweep
-# ---------------------------------------------------------------------------
 
 _ELO_SCORES = {"fighter1": 1.0, "fighter2": 0.0, "draw": 0.5}
 
@@ -410,11 +398,6 @@ def build_feature_rows(
                 "f1_odds": bout.odds1,
                 "f2_odds": bout.odds2,
                 "label": {"fighter1": 1, "fighter2": 0}.get(bout.winner),
-                # How and when the fight ended — LABEL material for the
-                # method-of-victory and round-of-finish models, never
-                # features (they're outputs of the fight). Both survive a
-                # corner swap unchanged: neither depends on who is in
-                # which corner.
                 "method": bout.method,
                 "end_round": bout.end_round,
                 "swapped": 0,
@@ -426,22 +409,14 @@ def build_feature_rows(
             for key in snaps["f1"]:
                 a, b = snaps["f1"][key], snaps["f2"][key]
                 row[f"diff_{key}"] = (a - b) if a is not None and b is not None else None
-            # Cross-fighter style interactions, named diff_* because they
-            # are antisymmetric by construction and swap_corners negates
-            # every diff_* column.
             for key, value in matchup_features(snaps["f1"], snaps["f2"]).items():
                 row[f"diff_{key}"] = value
-            # Rematches and common opponents need the actual histories, not
-            # just snapshots — computed here, before the corner swap, from
-            # the bout's named fighters.
             anti, sym = pairing_research(
                 histories[bout.fighter1], histories[bout.fighter2],
                 bout.fighter1, bout.fighter2, on_date)
             for key, value in anti.items():
                 row[f"diff_{key}"] = value
             row.update(sym)
-            # Symmetric pairing features: unchanged by swap_corners, so they
-            # need no sign handling anywhere in the symmetry machinery.
             row.update(bout_features(snaps["f1"], snaps["f2"]))
             if row["label"] is not None and rng.random() < 0.5:
                 row = swap_corners(row)
@@ -473,28 +448,38 @@ def build_feature_rows(
                    else 1.0)
             elo.update(bout.fighter1, bout.fighter2, _ELO_SCORES[bout.winner],
                        k_multiplier=mov, k_multiplier_a=k1, k_multiplier_b=k2)
+            evidence = _domain_evidence(bout.duration_s)
             strike_score = _striking_score(bout)
             if strike_score is not None:
-                strike_elo.update(bout.fighter1, bout.fighter2, strike_score)
+                strike_elo.update(bout.fighter1, bout.fighter2, strike_score,
+                                  k_multiplier=evidence)
             grapple_score = _grappling_score(bout)
             if grapple_score is not None:
-                grapple_elo.update(bout.fighter1, bout.fighter2, grapple_score)
+                grapple_elo.update(bout.fighter1, bout.fighter2, grapple_score,
+                                   k_multiplier=evidence)
 
     return rows
 
 
-def _soft_score(diff: float, scale: float) -> float:
-    """Map a stat differential to a (0, 1) 'who won this domain' score.
+# Minutes of prior evidence. A 20-second exchange moves domain Elo less than
+# a 15-minute fight; the observed score itself stays who-won-the-domain.
+_DOMAIN_PRIOR_MINUTES = 5.0
 
-    diff = +scale gives ~0.73, a clear but not total domain win; huge
-    differentials saturate toward 1 instead of growing without bound.
-    """
+
+def _domain_evidence(duration_s: int | None) -> float:
+    if not duration_s:
+        return 1.0
+    minutes = duration_s / 60.0
+    return minutes / (minutes + _DOMAIN_PRIOR_MINUTES)
+
+
+def _soft_score(diff: float, scale: float) -> float:
+    """Map a stat differential to (0, 1). +scale is about 0.73; large gaps saturate."""
     return 1.0 / (1.0 + math.exp(-diff / scale))
 
 
 def _striking_score(bout: Bout) -> float | None:
-    """Fighter1's striking dominance this fight: sig strikes landed per
-    minute, differential, squashed. None when stats/duration are missing."""
+    """Fighter1's striking score from significant strikes landed per minute."""
     if not bout.stats1 or not bout.stats2 or not bout.duration_s:
         return None
     a, b = bout.stats1.get("sig_landed"), bout.stats2.get("sig_landed")
@@ -505,8 +490,7 @@ def _striking_score(bout: Bout) -> float | None:
 
 
 def _grappling_score(bout: Bout) -> float | None:
-    """Fighter1's grappling dominance: takedowns plus control-time edge
-    (2 minutes of control ~ 1 takedown), per 15 minutes, squashed."""
+    """Fighter1's grappling score. Two minutes of control counts as one takedown."""
     if not bout.stats1 or not bout.stats2 or not bout.duration_s:
         return None
     td_a, td_b = bout.stats1.get("td_landed"), bout.stats2.get("td_landed")
@@ -534,11 +518,6 @@ def swap_corners(row: dict) -> dict:
     swapped["label"] = 1 - row["label"]
     swapped["swapped"] = 1 - row["swapped"]
     return swapped
-
-
-# ---------------------------------------------------------------------------
-# DB adapter: SQLite -> plain inputs -> parquet-ready rows
-# ---------------------------------------------------------------------------
 
 
 def load_bouts(conn: sqlite3.Connection) -> list[Bout]:

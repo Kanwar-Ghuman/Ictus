@@ -22,7 +22,7 @@ flowchart LR
   I --> K[Ledger]
 ```
 
-Picks are frozen before the event. The bot then watches ESPN and the Kalshi winner book and buys only when the model price still clears fees and depth.
+Picks start from the frozen pre-fight card. With `--in-fight`, the live ESPN clock and stats reprice the fight, and the bot buys when that price still clears fees and depth.
 
 ## Kalshi bot
 
@@ -32,7 +32,7 @@ One command starts the ESPN fight feed, the bot, and the dashboard.
 ./ictus.sh paper              # practice, no money
 ./ictus.sh demo               # Kalshi demo account
 ./ictus.sh live 5             # real money; hard $5 cap per event
-./ictus.sh paper --in-fight   # also bet between rounds
+./ictus.sh paper --in-fight   # reprice from the live fight and bet during it
 ```
 
 Open [http://localhost:3000](http://localhost:3000), set a spend limit, press **Start**.
@@ -40,7 +40,7 @@ Ctrl+C in that terminal stops everything.
 
 - Matches tonight’s ESPN card to frozen picks and each Kalshi `KXUFCFIGHT` winner market
 - Builds predictions on the page if none exist yet
-- One order attempt per fight (or per round-break with `--in-fight`)
+- One pre-fight attempt sequence per fight. With `--in-fight`, the live clock and stats reprice the fight and the bot can buy about once a second while the edge lasts, plus between rounds
 - Hard event budget; a stuck or unclear order pauses the session
 
 Winner markets only. Method, round, and parlay contracts are skipped.

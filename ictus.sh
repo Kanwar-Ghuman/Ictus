@@ -4,7 +4,7 @@
 #
 #   ./ictus.sh paper              practice, no money
 #   ./ictus.sh live 5             real money, the bot can never spend more than $5 per event
-#   ./ictus.sh paper --in-fight   also bet between rounds
+#   ./ictus.sh paper --in-fight   reprice from the live fight and bet during it
 set -euo pipefail
 cd "$(dirname "$0")"
 unset VIRTUAL_ENV
@@ -24,9 +24,9 @@ elif [[ "$MODE" != "paper" && "$MODE" != "demo" ]]; then
   exit 1
 fi
 
-FLAGS=(--mode "$MODE" --max-source-age-seconds 600
-       # Sizing chosen on Oct 31: Kelly-limited, but no extra per-order/per-fight caps.
-       --max-order-fraction 1 --max-bout-fraction 1 --kelly-fraction 1)
+# Sizing: the budget is split across the fights left, more on bigger edges
+# (defaults: 3¢ minimum edge, at most 40% on one fight). See model/docs/kalshi_trading.md.
+FLAGS=(--mode "$MODE" --max-source-age-seconds 600)
 if [[ "$MODE" == "live" ]]; then
   read -r -p "REAL MONEY on Kalshi, up to \$$CAP per event. Type yes to continue: " answer
   [[ "$answer" == "yes" ]] || { echo "Cancelled."; exit 1; }

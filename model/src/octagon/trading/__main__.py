@@ -42,16 +42,18 @@ def main(argv=None):
     parser.add_argument("--max-event-dollars", type=dollars, default=None,
                         help="Hard cap on any event budget the dashboard may set (required for live)")
     defaults = RiskPolicy()
-    parser.add_argument("--max-order-fraction", type=fraction, default=defaults.max_order_fraction,
-                        help="Largest single order as a fraction of the event budget")
+    parser.add_argument("--min-edge", type=fraction, default=defaults.min_net_edge,
+                        help="Minimum expected profit per $1 contract after fees (default 0.03)")
     parser.add_argument("--max-bout-fraction", type=fraction, default=defaults.max_bout_fraction,
-                        help="Largest spend on one bout as a fraction of the event budget")
-    parser.add_argument("--kelly-fraction", type=fraction, default=defaults.kelly_fraction,
-                        help="Fraction of the Kelly stake to use (at most 1, never over-Kelly)")
+                        help="Most of the event budget one fight may use across all its bets")
+    parser.add_argument("--inplay-reserve", type=fraction, default=defaults.inplay_reserve,
+                        help="With --in-fight, share of the budget kept for between-rounds bets")
+    parser.add_argument("--min-ufc-fights", type=int, default=defaults.min_ufc_fights,
+                        help="UFC fights each fighter needs for a pre-fight bet (0 allows debuts)")
     parser.add_argument("--max-source-age-seconds", type=float, default=defaults.max_source_age_seconds,
                         help="Oldest acceptable ESPN espn_updated_at; ESPN often changes it only every 1-2 min")
     parser.add_argument("--in-fight", action="store_true",
-                        help="Also trade between rounds with the between-rounds model (off by default)")
+                        help="Reprice from the live clock and stats and trade during the fight (off by default)")
     parser.add_argument("--inplay-artifact", type=Path, default=project_root() / "artifacts" / "inplay.json",
                         help="Between-rounds model from `octagon train-inplay`")
     args = parser.parse_args(argv)
@@ -65,9 +67,12 @@ def main(argv=None):
     if not 0 < args.max_source_age_seconds <= 600:
         parser.error("--max-source-age-seconds must be greater than 0 and at most 600")
     environment = args.market_environment or ("demo" if args.mode == "demo" else "production")
-    policy = RiskPolicy(max_order_fraction=args.max_order_fraction,
+    if args.min_ufc_fights < 0:
+        parser.error("--min-ufc-fights must be 0 or more")
+    policy = RiskPolicy(min_net_edge=args.min_edge,
                         max_bout_fraction=args.max_bout_fraction,
-                        kelly_fraction=args.kelly_fraction,
+                        inplay_reserve=args.inplay_reserve,
+                        min_ufc_fights=args.min_ufc_fights,
                         max_source_age_seconds=args.max_source_age_seconds)
     try:
         run(args.mode, args.port, args.gateway_url, args.state_dir, environment,

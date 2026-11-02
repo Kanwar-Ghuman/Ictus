@@ -1,11 +1,13 @@
-"""Event-budget coordinator. In-play execution is unavailable.
+"""Event-budget coordinator. In-play execution runs only when a model is attached.
 
 Production (real-money) orders run only in ``live`` mode, which requires an
 explicitly live-enabled production client and a hard per-event dollar cap.
 
 Every decision requires a freshly observed ESPN bout, explicit market identity,
 current exchange metadata and executable depth. A ledger reservation is durable
-before a demo order can leave the process. Only one attempt per bout is allowed.
+before an order can leave the process. Budget is spread across the card: each
+fight still to be decided gets a slice of the money left, scaled by edge
+strength. Missed or partly filled orders are retried (bounded) while the edge lasts.
 """
 
 from __future__ import annotations
@@ -23,18 +25,21 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-from octagon.inplay.live import BREAK_STATUS, break_inputs
+from octagon.inplay.live import BREAK_STATUS, fight_progress
 from octagon.trading.kalshi import KalshiClient, KalshiOrderBook, KalshiTransportError
 from octagon.trading.ledger import Ledger
-from octagon.trading.risk import RiskPolicy, decimal, money, size_candidate
+from octagon.trading.risk import (
+    RiskPolicy, bout_allowance, decimal, edge_of, money, size_candidate,
+)
 
 READINESS_REASONS = [
     "No independently verified Kalshi trading edge: live orders can lose the whole budget.",
-    "The current model is pre-fight only; every in-progress bout is blocked.",
+    "Pre-fight forecasts come from the skill model; in-fight reprices from the live clock and stats.",
     "Historical sportsbook backtests do not establish profitable Kalshi execution.",
     "Paper fills are simulations; demo fills use Kalshi's separate test environment.",
 ]
 IDENTIFIER = re.compile(r"^[A-Za-z0-9_-]{1,160}$")
+IDLE_DECISION_SECONDS = 2.0
 
 
 def normalized_name(name: str) -> str:
@@ -117,6 +122,8 @@ class TradingEngine:
         self.prefight: dict[str, dict] = self._load_prefight()
         self.prefight_checked: dict[str, float] = {}
         self.break_seen: dict[tuple[str, int], float] = {}
+        # Monotonic time of the last order attempt per attempt family.
+        self.last_attempt: dict[str, float] = {}
         self.policy = policy or RiskPolicy()
         self.record = record or (lambda kind, data: None)
         self.running = threading.Event()
@@ -322,7 +329,8 @@ class TradingEngine:
                     raise ValueError("Start was canceled by Stop; review the session before resuming")
                 self.running.set()
                 self.message = (f"{self.mode.title()} session running. "
-                                + ("In-fight trades only between rounds." if self.inplay is not None
+                                + ("In-fight reprices from the live clock and stats."
+                                   if self.inplay is not None
                                    else "In-progress bouts remain blocked."))
             return self.status()
 
@@ -344,7 +352,7 @@ class TradingEngine:
                    or (bout.get("round") or 0) > 0)
         if started:
             if self.inplay is not None and bout.get("status") == "in_progress":
-                return "Bout in progress; in-fight trades happen only between rounds"
+                return "Bout in progress; waiting for a usable live clock and stats"
             self.ledger.block_bout(self.session_id, mapping["bout_id"],
                                    "No validated in-play model; bout started or finished")
             return "No validated in-play model; bout started or finished"
@@ -360,7 +368,8 @@ class TradingEngine:
         if need_history:
             for key in ("f1_ufc_fights", "f2_ufc_fights"):
                 history = mapping.get(key)
-                if not isinstance(history, int) or isinstance(history, bool) or history < 3:
+                if (not isinstance(history, int) or isinstance(history, bool)
+                        or history < self.policy.min_ufc_fights):
                     return "Insufficient fighter history for this trading policy"
         return None
 
@@ -403,22 +412,28 @@ class TradingEngine:
         matches = [b for b in data or [] if isinstance(b, dict) and b.get("bout_id") == bout_id]
         return matches[0].get("status") if len(matches) == 1 else None
 
-    def _inplay_inputs(self, mapping: dict, now: float) -> tuple[str, Decimal, str, int]:
-        """(attempt key, P(f1 wins), prior source, completed round) during a break."""
+    def _inplay_inputs(self, mapping: dict, now: float) -> tuple[str, Decimal, str, int, str]:
+        """(attempt key, P(f1), prior source, round, phase) from the latest live bout."""
         bout, reason = self._feed_bout(mapping, now)
         if reason:
             raise ValueError(reason)
-        round_k, stats_1, stats_2 = break_inputs(bout, mapping["f1"], mapping["f2"], normalized_name)
+        elapsed, stats_1, stats_2, phase = fight_progress(
+            bout, mapping["f1"], mapping["f2"], normalized_name)
         scheduled = mapping.get("scheduled_rounds")
         if scheduled not in (3, 5):
             raise ValueError("Scheduled rounds unknown; in-fight trading needs 3 or 5")
-        if round_k >= scheduled:
+        if elapsed >= scheduled:
             raise ValueError("Final round finished; awaiting the result")
-        seen = self.break_seen.get((mapping["bout_id"], round_k))
-        if seen is None or time.monotonic() - seen < self.policy.min_break_seconds:
-            raise ValueError("Break just started; waiting for round totals to settle")
-        if time.monotonic() - seen > self.policy.max_break_seconds:
-            raise ValueError("Too late in the break; the next round may already be live")
+        round_k = int(elapsed) if phase == "break" else int(bout["round"])
+        if phase == "break":
+            seen = self.break_seen.get((mapping["bout_id"], round_k))
+            if seen is None or time.monotonic() - seen < self.policy.min_break_seconds:
+                raise ValueError("Break just started; waiting for round totals to settle")
+            if time.monotonic() - seen > self.policy.max_break_seconds:
+                raise ValueError("Too late in the break; the next round may already be live")
+            key = f'{mapping["bout_id"]}:r{round_k}'
+        else:
+            key = f'{mapping["bout_id"]}:l{round_k}'
         prior = self.prefight.get(mapping["ticker"])
         if prior and now - prior["at"] <= self.policy.prefight_max_age_seconds:
             p_prior, source = decimal(prior["p_f1"]), "kalshi pre-fight price"
@@ -428,10 +443,11 @@ class TradingEngine:
             card_reason = self._card_reason(mapping, now, need_history=True)
         if card_reason:
             raise ValueError(card_reason)
-        p_f1 = self.inplay.predict_one(stats_1, stats_2, float(p_prior), round_k, scheduled)
+        p_f1 = self.inplay.predict_progress(
+            stats_1, stats_2, float(p_prior), elapsed, scheduled)
         # Never act on near-certainty, and keep sizing in exact 4 dp decimals.
         p_f1 = min(max(p_f1, 0.01), 0.99)
-        return (f'{mapping["bout_id"]}:r{round_k}', decimal(f"{p_f1:.4f}"), source, round_k)
+        return key, decimal(f"{p_f1:.4f}"), source, round_k, phase
 
     def _capture_prefight(self, mapping: dict, status: str | None):
         """Remember the last two-sided Kalshi mid while the bout is still scheduled."""
@@ -545,17 +561,23 @@ class TradingEngine:
                 in_fight = self.inplay is not None and status == "in_progress"
                 try:
                     if in_fight:
-                        attempt, p_f1, source, round_k = self._inplay_inputs(mapping, time.time())
-                        decision.update(phase=f"after round {round_k}", prior=source)
-                        if any(o["bout_id"] == attempt for o in orders):
-                            raise ValueError(f"Already attempted during the break after round {round_k}")
+                        family, p_f1, source, round_k, phase = self._inplay_inputs(
+                            mapping, time.time())
+                        decision.update(phase=(f"live round {round_k}" if phase == "live"
+                                               else f"after round {round_k}"),
+                                        prior=source, p_f1=float(p_f1))
+                        family, attempt = self._next_attempt(
+                            orders, family, kind=phase,
+                            label=(f"during round {round_k}" if phase == "live"
+                                   else f"in the break after round {round_k}"))
                     else:
-                        if any(o["bout_id"] == mapping["bout_id"] for o in orders):
-                            raise ValueError("This bout already has an order attempt")
                         reason = self._feed_reason(mapping, time.time())
                         if reason:
                             raise ValueError(reason)
-                        attempt, p_f1 = mapping["bout_id"], decimal(mapping["probability_f1"])
+                        decision.update(phase="pre-fight")
+                        family, attempt = self._next_attempt(
+                            orders, mapping["bout_id"], kind="prefight", label="before the fight")
+                        p_f1 = decimal(mapping["probability_f1"])
                     market, multiplier = self._market_context(mapping)
                     if self.market_stream_required:
                         # The book is cleared on disconnect or sequence gap and
@@ -578,24 +600,24 @@ class TradingEngine:
                     spread = quotes["yes"][0] + quotes["no"][0] - 1
                     event = self.ledger.event(self.session_id)
                     p_yes = p_f1 if mapping["yes_fighter"] == mapping["f1"] else 1 - p_f1
-                    # Every attempt on this bout (pre-fight and each break) shares its cap.
-                    bout_spent = sum((decimal(o["cost_dollars"]) + decimal(o["reserved_dollars"])
-                                      for o in orders if o["bout_id"] == mapping["bout_id"]
-                                      or o["bout_id"].startswith(mapping["bout_id"] + ":")),
-                                     Decimal(0))
-                    candidates = []
+                    room = self._budget_room(orders, mapping, in_fight, event)
+                    candidates, best = [], None
                     for side, probability in (("yes", p_yes), ("no", 1 - p_yes)):
                         price, depth = quotes[side]
+                        unit_cost, edge, kelly = edge_of(probability, price, multiplier, self.policy)
+                        allowance = bout_allowance(kelly=kelly, policy=self.policy,
+                                                   unit_cost=unit_cost, **room)
+                        if best is None or edge > best[1]:
+                            best = (side, edge, probability, unit_cost, allowance)
                         candidate = size_candidate(
                             side=side, probability=probability, price=price, depth=depth,
-                            spread=spread, budget=decimal(event["budget_dollars"]),
-                            remaining=decimal(event["remaining_dollars"]), bout_spent=bout_spent,
+                            spread=spread, allowance=allowance,
                             fee_multiplier=multiplier, policy=self.policy,
                         )
                         if candidate:
                             candidates.append(candidate)
                     if not candidates:
-                        raise ValueError("No trade meets net edge, spread, depth and budget limits")
+                        raise ValueError(self._no_trade_reason(mapping, spread, *best))
                     candidate = max(candidates, key=lambda c: c.net_edge)
                     if self.mode != "paper":
                         balance = self.client.get_balance()
@@ -603,7 +625,7 @@ class TradingEngine:
                             raise ValueError("Insufficient account cash for price plus fee reservation")
                     if in_fight:
                         # Still the same break with the same inputs, after the quote.
-                        if self._inplay_inputs(mapping, time.time())[0] != attempt:
+                        if self._inplay_inputs(mapping, time.time())[0] != family:
                             raise ValueError("The break ended while quoting")
                     else:
                         reason = self._feed_reason(mapping, time.time())
@@ -616,6 +638,7 @@ class TradingEngine:
                             <= self.policy.close_buffer_seconds):
                         raise ValueError("Stopped, quote expired, or market is closing")
                     client_id = self.ledger.reserve(self.session_id, attempt, mapping["ticker"], candidate)
+                    self.last_attempt[family] = time.monotonic()
                     decision.update({"side": candidate.side,
                                      "probability": float(candidate.probability),
                                      "price_dollars": str(candidate.price),
@@ -649,6 +672,97 @@ class TradingEngine:
             raise
         finally:
             self.lock.release()
+
+    @property
+    def decision_interval(self) -> float:
+        """How often the worker may look again. Live repricing checks every second."""
+        if self.inplay is not None:
+            return self.policy.live_retry_seconds
+        return IDLE_DECISION_SECONDS
+
+    def _next_attempt(self, orders: list[dict], base: str, *, kind: str,
+                      label: str) -> tuple[str, str]:
+        """(attempt family, unique ledger key) for the next try, or why not yet.
+
+        Pre-fight keys: "<bout>", "<bout>:p2", ... Breaks: "<bout>:r<k>".
+        Live rounds: "<bout>:l<k>". Every key shares the fight's budget caps.
+        """
+        if kind == "prefight":
+            limit, wait, marker = (self.policy.max_prefight_attempts,
+                                   self.policy.prefight_retry_seconds, base + ":p")
+        elif kind == "break":
+            limit, wait, marker = (self.policy.max_break_attempts,
+                                   self.policy.break_retry_seconds, base + ":")
+        elif kind == "live":
+            limit, wait, marker = (self.policy.max_live_attempts,
+                                   self.policy.live_retry_seconds, base + ":")
+        else:
+            raise ValueError("Unknown attempt kind")
+        tries = sum(1 for o in orders if o["bout_id"] == base or o["bout_id"].startswith(marker))
+        if tries >= limit:
+            raise ValueError(f"Already tried {tries} times {label}")
+        last = self.last_attempt.get(base)
+        if last is not None and time.monotonic() - last < wait:
+            raise ValueError(f"Waiting {wait - (time.monotonic() - last):.0f}s before trying "
+                             f"again {label}")
+        if tries == 0:
+            return base, base
+        return base, f"{marker}{tries + 1}"
+
+    def _budget_room(self, orders: list[dict], mapping: dict, in_fight: bool,
+                     event: dict) -> dict:
+        """Inputs for risk.bout_allowance: this fight's share of what is left."""
+        budget = decimal(event["budget_dollars"])
+        remaining = decimal(event["remaining_dollars"])
+
+        def used(order):
+            return decimal(order["cost_dollars"]) + decimal(order["reserved_dollars"])
+
+        def fight(order):
+            return order["bout_id"].split(":")[0]
+
+        def is_break(order):
+            # ":l" is a live-round attempt. Both share the in-fight budget.
+            return ":r" in order["bout_id"] or ":l" in order["bout_id"]
+
+        open_bouts = set()
+        for m in self.config["mappings"]:
+            if self.ledger.blocked(self.session_id, m["bout_id"]):
+                continue
+            if in_fight or self._bout_status(m["bout_id"]) in (None, "scheduled"):
+                open_bouts.add(m["bout_id"])
+        open_bouts.add(mapping["bout_id"])
+        phase = [o for o in orders if is_break(o) == in_fight]
+        if in_fight or self.inplay is None:
+            phase_available = remaining
+        else:
+            # Keep part of the budget for between-rounds trades.
+            cap = budget * (1 - self.policy.inplay_reserve)
+            phase_available = min(remaining, max(Decimal(0), cap - sum(map(used, phase), Decimal(0))))
+        return {
+            "budget": budget, "remaining": remaining, "phase_available": phase_available,
+            "phase_pool": phase_available + sum(
+                (used(o) for o in phase if fight(o) in open_bouts), Decimal(0)),
+            "open_bouts": len(open_bouts),
+            "phase_bout_spent": sum((used(o) for o in phase if fight(o) == mapping["bout_id"]),
+                                    Decimal(0)),
+            "bout_spent": sum((used(o) for o in orders if fight(o) == mapping["bout_id"]),
+                              Decimal(0)),
+        }
+
+    def _no_trade_reason(self, mapping: dict, spread: Decimal, side: str, edge: Decimal,
+                         probability: Decimal, unit_cost: Decimal, allowance: Decimal) -> str:
+        yes, f1, f2 = mapping["yes_fighter"], mapping["f1"], mapping["f2"]
+        name = yes if side == "yes" else (f2 if yes == f1 else f1)
+        view = (f"model {probability:.0%} on {name} vs {unit_cost * 100:.0f}¢ all-in, "
+                f"edge {edge * 100:+.1f}¢")
+        if edge < self.policy.min_net_edge:
+            return f"No edge: {view} (needs {self.policy.min_net_edge * 100:.0f}¢)"
+        if spread > self.policy.max_spread:
+            return f"Spread {spread * 100:.0f}¢ too wide; {view}"
+        if allowance < unit_cost:
+            return f"This fight's budget share is used; {view}"
+        return f"Not enough contracts offered; {view}"
 
     def _submit_demo(self, client_id: str, mapping: dict, candidate):
         acknowledged = False

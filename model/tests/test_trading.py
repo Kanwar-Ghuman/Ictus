@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 from octagon.trading.engine import TradingEngine, rest_quotes
 from octagon.trading.kalshi import KalshiTransportError
 from octagon.trading.ledger import Ledger
-from octagon.trading.risk import RiskPolicy, money, size_candidate
+from octagon.trading.risk import RiskPolicy, bout_allowance, money, size_candidate
 from octagon.trading.service import Recorder, create_app, local_gateway, process_lease
 
 
@@ -137,8 +137,7 @@ def setup(tmp_path):
 
 def candidate(**overrides):
     args = dict(side="yes", probability=D("0.8"), price=D("0.5"), depth=D(100),
-                spread=D("0.01"), budget=D(200), remaining=D(200), bout_spent=D(0),
-                fee_multiplier=D(1), policy=RiskPolicy())
+                spread=D("0.01"), allowance=D(10), fee_multiplier=D(1), policy=RiskPolicy())
     args.update(overrides)
     return size_candidate(**args)
 
@@ -150,8 +149,8 @@ def test_budget_is_finite_exact_nonnegative(amount):
 
 
 def test_sizing_never_forces_spend_or_exceeds_displayed_depth():
-    assert candidate(probability=D("0.55")) is None
-    assert candidate(remaining=D("0.01")) is None
+    assert candidate(probability=D("0.54")) is None
+    assert candidate(allowance=D("0.01")) is None
     assert candidate(spread=D("0.2")) is None
     assert candidate(depth=D("0.99")) is None
     result = candidate(depth=D("3.9"))
@@ -169,7 +168,8 @@ def test_paper_fills_once_and_never_calls_exchange_order(setup):
     assert not exchange.sent
     assert len(status["orders"]) == 1
     assert status["orders"][0]["status"] == "paper_filled"
-    assert D(status["event"]["spent_dollars"]) <= D("10")
+    # One fight, huge edge: capped at 40% of the $200 budget and by displayed depth.
+    assert D(status["event"]["spent_dollars"]) <= D("80")
     assert D(status["event"]["reserved_dollars"]) == 0
     assert status["readiness"]["live_enabled"] is False
 
@@ -510,7 +510,7 @@ def test_live_mode_requires_live_enabled_production_client_and_cap(tmp_path):
 def test_live_mode_enforces_hard_cap_and_submits_through_exchange(tmp_path):
     exchange = Exchange()
     exchange.environment, exchange.live_enabled = "production", True
-    loose = RiskPolicy(max_order_fraction=D("1"), max_bout_fraction=D("1"), kelly_fraction=D("1"))
+    loose = RiskPolicy(max_bout_fraction=D("1"))
     engine = TradingEngine(Ledger(tmp_path / "live.db"), exchange, mode="live", max_budget=D("5"),
                            policy=loose)
     engine.sleep = lambda seconds: None
@@ -545,15 +545,17 @@ def test_cli_live_mode_requires_confirmation_and_cap(monkeypatch):
         cli.main(["--mode", "live", "--confirm-real-money"])
     with pytest.raises(SystemExit):
         cli.main(["--mode", "live", "--confirm-real-money", "--max-event-dollars", "5",
-                  "--kelly-fraction", "1.5"])
+                  "--max-bout-fraction", "1.5"])
     assert not calls
     cli.main(["--mode", "live", "--confirm-real-money", "--max-event-dollars", "5",
-              "--max-order-fraction", "1", "--max-bout-fraction", "1", "--kelly-fraction", "1",
-              "--max-source-age-seconds", "180"])
+              "--max-bout-fraction", "1", "--min-edge", "0.02", "--inplay-reserve", "0.5",
+              "--min-ufc-fights", "0", "--max-source-age-seconds", "180"])
     (args, kwargs), = calls
     assert args[0] == "live" and args[4] == "production"
     assert kwargs["max_event_dollars"] == D("5")
-    assert kwargs["policy"].max_order_fraction == D("1") and kwargs["policy"].kelly_fraction == D("1")
+    policy = kwargs["policy"]
+    assert policy.max_bout_fraction == D("1") and policy.min_net_edge == D("0.02")
+    assert policy.inplay_reserve == D("0.5") and policy.min_ufc_fights == 0
     assert kwargs["policy"].max_source_age_seconds == 180
 
 
@@ -609,3 +611,107 @@ def test_quiet_but_connected_market_stream_is_not_stale(setup):
     assert all("websocket" not in d["reason"] for d in engine.status()["decisions"])
     engine.disconnect_book()
     assert engine.status()["market_connected"] is False
+
+
+def test_oct31_brown_smith_edge_now_trades():
+    # Model 38% vs a 29¢ ask: ~7¢ edge after fees. The old 5pt haircut + 4pt bar skipped it.
+    result = candidate(probability=D("0.3795"), price=D("0.29"), allowance=D("1.00"))
+    assert result is not None and result.count == 3
+    assert result.net_edge >= RiskPolicy().min_net_edge
+
+
+def test_budget_is_split_across_open_fights_by_conviction():
+    policy = RiskPolicy()
+    common = dict(budget=D(12), remaining=D(12), phase_available=D(12), phase_pool=D(12),
+                  open_bouts=12, phase_bout_spent=D(0), bout_spent=D(0), policy=policy)
+    assert bout_allowance(kelly=D("0.10"), **common) == D(1)       # one slice
+    assert bout_allowance(kelly=D("0.05"), **common) == D("0.5")   # weak edge, half a slice
+    assert bout_allowance(kelly=D("0.90"), **common) == D(2)       # capped at two slices
+    # Later in the night, unused money flows to the fights that are left.
+    late = common | dict(phase_pool=D(12), open_bouts=2)
+    assert bout_allowance(kelly=D("0.05"), **late) == D(3)
+    assert bout_allowance(kelly=D("0.90"), **late) == D("4.8")     # 40% per-fight ceiling
+    assert bout_allowance(kelly=D("0.05"), **late | dict(phase_bout_spent=D(3))) == 0
+
+
+def test_small_budget_long_card_still_buys_one_contract():
+    # Oct 31 numbers: $5 budget, in-fight reserve, 12 fights -> 29¢ slice < 31¢ contract.
+    policy = RiskPolicy()
+    room = dict(budget=D(5), remaining=D(5), phase_available=D("3.5"), phase_pool=D("3.5"),
+                open_bouts=12, phase_bout_spent=D(0), bout_spent=D(0), policy=policy)
+    allowance = bout_allowance(kelly=D("0.10"), unit_cost=D("0.31"), **room)
+    assert allowance == D("0.31")
+    assert candidate(probability=D("0.3795"), price=D("0.29"), allowance=allowance).count == 1
+    # ...but only once per fight per phase, and never past the hard limits.
+    assert bout_allowance(kelly=D("0.10"), unit_cost=D("0.31"),
+                          **room | dict(phase_bout_spent=D("0.31"))) == 0
+    assert bout_allowance(kelly=D("0.10"), unit_cost=D("0.31"),
+                          **room | dict(phase_available=D("0.20"))) == D("0.20")
+
+
+def test_budget_is_shared_across_the_card_not_first_come(tmp_path):
+    exchange = Exchange()
+    engine = TradingEngine(Ledger(tmp_path / "card.db"), exchange)
+    engine.configure(request(two=True), card())
+    engine.update_feed(feed())
+    engine.start()
+    engine.tick()
+    orders = engine.status()["orders"]
+    assert {o["bout_id"] for o in orders} == {"1", "2"}
+    # Two strong edges each get up to two half-budget slices, capped at 40% each.
+    assert all(D(o["cost_dollars"]) <= D("80") for o in orders)
+
+
+def test_missed_order_is_retried_after_cooldown(tmp_path):
+    exchange = Exchange()
+    exchange.environment, exchange.live_enabled = "production", True
+    engine = TradingEngine(Ledger(tmp_path / "retry.db"), exchange, mode="live",
+                           max_budget=D("200"))
+    engine.sleep = lambda seconds: None
+    engine.configure(request(), card())
+    engine.update_feed(feed())
+    engine.start()
+    exchange.partial_count = D(0)          # IOC misses: price moved away
+    engine.tick()
+    assert engine.status()["orders"][0]["status"] == "unfilled"
+    engine.update_feed(feed())
+    engine.tick()                          # inside the cooldown: no new attempt
+    assert len(engine.status()["orders"]) == 1
+    assert "Waiting" in engine.status()["decisions"][0]["reason"]
+    engine.last_attempt["1"] -= RiskPolicy().prefight_retry_seconds
+    exchange.partial_count = None
+    engine.update_feed(feed())
+    engine.tick()
+    orders = engine.status()["orders"]
+    assert [o["bout_id"] for o in orders] == ["1:p2", "1"]
+    assert orders[0]["status"] == "filled"
+    assert len(exchange.sent) == 2
+
+
+def test_retries_are_bounded(setup):
+    engine, _ = setup
+    policy = engine.policy
+    engine.start()
+    for _ in range(policy.max_prefight_attempts + 2):
+        engine.last_attempt.clear()
+        engine.update_feed(feed())
+        engine.tick()
+    assert len(engine.status()["orders"]) <= policy.max_prefight_attempts
+
+
+def test_debut_fighter_blocked_but_one_fight_allowed(tmp_path):
+    engine = TradingEngine(Ledger(tmp_path / "h.db"), Exchange())
+    debut, one = card(), card()
+    debut["bouts"][0]["f1_ufc_fights"] = 0
+    one["bouts"][0]["f1_ufc_fights"] = 1
+    engine.configure(request(), debut)
+    engine.update_feed(feed())
+    engine.start()
+    engine.tick()
+    assert "history" in engine.status()["decisions"][0]["reason"]
+    engine.stop()
+    engine.configure(request(), one)
+    engine.start()
+    engine.update_feed(feed())
+    engine.tick()
+    assert engine.status()["orders"]

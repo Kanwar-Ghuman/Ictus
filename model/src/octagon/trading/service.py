@@ -182,7 +182,7 @@ async def decide(engine: TradingEngine):
         except Exception:
             engine.running.clear()
             engine.message = "Trading worker stopped after an error; inspect the journal before restarting."
-        await asyncio.sleep(2)
+        await asyncio.sleep(engine.decision_interval)
 
 
 def create_app(engine: TradingEngine, token: str, *, background: bool = False,
@@ -383,7 +383,7 @@ def run(mode: str, port: int, gateway_url: str, state_dir: Path, market_environm
             if mode == "live":
                 print(f"LIVE MODE: REAL-MONEY orders on production Kalshi, hard cap ${engine.max_budget} per event.")
             if inplay is not None:
-                print("IN-FIGHT: between-rounds trades enabled. No trading edge has been demonstrated.")
+                print("IN-FIGHT: live clock repricing, one-second retries. No trading edge has been demonstrated.")
             else:
                 print("Production orders disabled.")
             print("Service starts paused. Never expose this port publicly.")

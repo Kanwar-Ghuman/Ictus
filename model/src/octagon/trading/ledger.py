@@ -195,7 +195,7 @@ class Ledger:
                           (session_id,)).fetchone():
                 raise ValueError("Another order needs reconciliation before spending more")
             if db.execute("SELECT 1 FROM blocked_bouts WHERE session_id=? AND bout_id=?",
-                          (session_id, bout_id)).fetchone():
+                          (session_id, bout_id.split(":")[0])).fetchone():
                 raise ValueError("Bout has already started or become unavailable")
             client_id = str(uuid.uuid4())
             try:
@@ -206,7 +206,7 @@ class Ledger:
                      str(candidate.price), amount, "pending"),
                 )
             except sqlite3.IntegrityError as exc:
-                raise ValueError("This bout already has an order attempt; reconcile it first") from exc
+                raise ValueError("This attempt is already recorded; reconcile it first") from exc
         return client_id
 
     def mark_unknown(self, client_id: str, exchange_order_id: str | None = None):

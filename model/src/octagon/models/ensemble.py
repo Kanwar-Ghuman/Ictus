@@ -13,11 +13,7 @@ def blend(p_lr: np.ndarray, p_gbm: np.ndarray, weight_lr: float) -> np.ndarray:
 
 
 def tune_weight(y: np.ndarray, p_lr: np.ndarray, p_gbm: np.ndarray) -> float:
-    """Grid-search the LR weight on held-out (train-era OOS) predictions.
-
-    A 1-D grid beats fancier meta-learners here: with one parameter there's
-    almost nothing to overfit, and the answer is easy to read.
-    """
+    """Pick the logistic weight on train-era out-of-sample predictions."""
     grid = np.linspace(0.0, 1.0, 21)
     losses = [log_loss(y, blend(p_lr, p_gbm, w)) for w in grid]
     return float(grid[int(np.argmin(losses))])

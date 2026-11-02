@@ -262,11 +262,10 @@ def _normalize_method(method_str: str) -> str:
     if "dec" in method_lower or "decision" in method_lower:
         return "DEC"
     if "draw" in method_lower:
-        return "DEC"  # Draw is treated as decision
+        return "DEC"
     if "nc" in method_lower or "no contest" in method_lower:
         return "NC"
 
-    # Return original if no match, normalized
     return method_str[:15] if method_str else "DEC"
 
 
@@ -291,7 +290,7 @@ def fetch(names: list[str], delay: float = 0.5,
     records = {}
     for i, name in enumerate(unique):
         if i:
-            time.sleep(delay)  # Polite crawl delay
+            time.sleep(delay)
 
         record = _blank(name)
 
@@ -306,8 +305,7 @@ def fetch(names: list[str], delay: float = 0.5,
             if match:
                 record["sherdog_fighter_id"] = match.group(1)
 
-            # Parse fight history
-            time.sleep(delay)  # Another delay before fetching fighter page
+            time.sleep(delay)
             fights = _parse_fight_history(fighter_url, session)
             record["regional_fights"] = fights
 

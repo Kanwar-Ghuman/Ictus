@@ -198,6 +198,37 @@ def test_domain_elos_move_with_stats_not_results():
         second["f1_strike_elo"] - second["f2_strike_elo"])
 
 
+def test_short_fight_moves_domain_elo_less_and_keeps_the_sign():
+    edge = dict(
+        stats1=make_stats(sig_landed=40, td_landed=3, ctrl_seconds=180),
+        stats2=make_stats(sig_landed=10, td_landed=0, ctrl_seconds=0),
+    )
+    flash = [
+        make_bout(1, "2020-01-01", "Alice", "Bob", duration_s=20, **edge),
+        make_bout(2, "2020-06-01", "Alice", "Carol"),
+    ]
+    sustained = [
+        make_bout(1, "2020-01-01", "Alice", "Bob", duration_s=900, **edge),
+        make_bout(2, "2020-06-01", "Alice", "Carol"),
+    ]
+    flash_elo = canonical(build_feature_rows(flash, {}, elo_k=80), 2)["f1_strike_elo"]
+    sustained_elo = canonical(build_feature_rows(sustained, {}, elo_k=80), 2)["f1_strike_elo"]
+    assert sustained_elo > flash_elo > 1500.0
+
+    # A short win must not pull a favorite back toward 1500.
+    established = []
+    for i in range(8):
+        established.append(make_bout(
+            i, f"2019-{(i % 12) + 1:02d}-01", "Alice", f"Foe{i}", duration_s=900, **edge))
+    established.append(make_bout(20, "2020-01-01", "Alice", "Bob", duration_s=20, **edge))
+    established.append(make_bout(21, "2020-06-01", "Alice", "Carol"))
+    rated = build_feature_rows(established, {}, elo_k=80)
+    before = canonical(rated, 20)["f1_strike_elo"]
+    after = canonical(rated, 21)["f1_strike_elo"]
+    assert before > 1550.0
+    assert after > before
+
+
 def test_domain_elos_skip_fights_without_stats():
     no_stats = make_bout(1, "2020-01-01", "Alice", "Bob")
     no_stats.stats1 = no_stats.stats2 = None

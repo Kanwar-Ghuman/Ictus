@@ -1,7 +1,8 @@
 # Ictus Kalshi trading lab
 
 This integration runs **paper simulations, Kalshi demo orders, or opt-in live
-orders** with an event spending ceiling. In-fight trading is disabled. It
+orders** with an event spending ceiling. In-fight trading is off unless `--in-fight`
+is passed. It
 does not promise a profit, optimize a proven profitable policy, or improve the
 model's measured predictive accuracy. The existing results do not establish a
 trading edge: see [model evidence](trading_model_readiness.md).
@@ -48,8 +49,7 @@ folding; anything ambiguous is left out with a reason. Pressing Start is the
 confirmation for those markets; the service still validates every mapping.
 Fights that already have a bet keep their original market; other fights can be
 added or dropped when you restart with a new amount. The launcher uses
-`--max-source-age-seconds 600` and Kelly-limited sizing without extra per-order
-or per-fight caps (`--max-order-fraction 1 --max-bout-fraction 1 --kelly-fraction 1`).
+`--max-source-age-seconds 600` and the default card-wide sizing (below).
 
 The sections below describe the underlying commands and every safety rule.
 
@@ -135,11 +135,11 @@ uv run --extra trading python -m octagon.trading --mode live \
   --confirm-real-money --max-event-dollars 5
 ```
 
-`--max-order-fraction`, `--max-bout-fraction` and `--kelly-fraction` (each in
-(0, 1]) loosen the default 5% / 10% / quarter-Kelly sizing. Kelly is never
-exceeded, so even fully loosened sizing can leave most of a small budget unused.
-Every other check (feed freshness, started-bout block, exact market identity,
-account preflight, one attempt per bout, reconciliation) is unchanged. Live
+Sizing spreads the budget across the card (see *Spending and data rules*).
+Tuning flags: `--min-edge` (default 0.03), `--max-bout-fraction` (0.40),
+`--inplay-reserve` (0.30, only with `--in-fight`) and `--min-ufc-fights` (1; 0 allows
+debuts). Every safety check (feed freshness, started-bout block, exact market
+identity, account preflight, reconciliation) is unchanged. Live
 mode does not create an edge: nothing in [model evidence](trading_model_readiness.md)
 shows these orders are profitable, and the whole budget can be lost.
 
@@ -154,12 +154,14 @@ Use a dedicated demo account without unrelated trading in the mapped markets.
 Before starting, unexplained open orders or holdings in unattempted markets
 block execution. The event ledger is not a complete account-management system.
 
-### In-fight (between-rounds) mode
+### In-fight mode
 
-`--in-fight` adds a second decision path that trades **only during the break
-between rounds**, using the between-rounds model in `artifacts/inplay.json`
-(train/evaluate it with `uv run python -m octagon train-inplay`; results are in
+`--in-fight` reprices a bout from the live ESPN clock and cumulative stats, then
+buys while that price still clears fees and depth. It uses the same artifact as
+the between-rounds model, `artifacts/inplay.json` (train/evaluate it with
+`uv run python -m octagon train-inplay`; results are in
 [reports/inplay_eval.md](../reports/inplay_eval.md)). It is off by default.
+Without it, a started bout is still blocked.
 
 ```bash
 uv run --extra trading python -m octagon.trading --mode paper --in-fight \
@@ -168,15 +170,19 @@ uv run --extra trading python -m octagon.trading --mode paper --in-fight \
 
 - Inputs: the Kalshi mid recorded while the bout was still scheduled
   (`trading-state/prefight_prices.json`, refreshed every 10 s) — or, if none was
-  captured, the skill model's `p_skill` with the 3-UFC-fight history rule —
+  captured, the skill model's `p_skill` with the UFC-history rule —
   plus ESPN's cumulative totals (strikes by target, takedowns, control time,
-  knockdowns, submission attempts) at the end of round k.
-- Window: ESPN must report `STATUS_END_OF_ROUND`; the bot waits 10 s for round
-  totals to settle and refuses after 40 s, because ESPN keeps showing the break
-  ~30 s into the next round. Never during live action, never after the final round.
-- One attempt per bout per break (`<bout>:r<k>` in the ledger); every attempt on a
-  bout shares the per-bout cap. Probabilities are clamped to [1%, 99%].
-- Finished/unavailable bouts are still blocked permanently.
+  knockdowns, submission attempts).
+- Live round: elapsed time is completed rounds plus how far the five-minute
+  clock has run. The model was fit on end-of-round snapshots, so a mid-round
+  price is an extrapolation. ESPN totals during a round are partial and often
+  ~30 s behind the broadcast. A missing, blank, or over-five-minute clock skips
+  the bout. The worker checks about once a second (`live_retry_seconds`) and
+  may buy up to 12 times in that round (`<bout>:l<k>`, `<bout>:l<k>:2`, ...).
+- Break: ESPN must report `STATUS_END_OF_ROUND`; the bot waits 10 s for round
+  totals to settle and refuses after 40 s. Up to 3 attempts, 4 s apart
+  (`<bout>:r<k>`). No trades after the final round, and finished bouts stay blocked.
+- Every attempt on a bout shares its dollar cap. Probabilities are clamped to [1%, 99%].
 
 The model is far more accurate than the pre-fight prior (2024–26 test: 63% → 75%
 accuracy, 80% after round 2), but **Kalshi's live price also watches the fight**.
@@ -200,13 +206,15 @@ break-time prices before risking money.
 | Control | Initial policy |
 |---|---|
 | Total event ceiling | User amount, including fees and unresolved reservations |
-| Per-order allocation | At most 5% of the event budget |
-| Per-bout allocation | At most 10%; currently one attempt means the order cap binds |
-| Sizing | Quarter Kelly, further constrained by budget, depth, and order caps |
-| Probability haircut | 5 percentage points; a policy margin, not a confidence interval |
-| Minimum remaining edge | 4 percentage points after haircut and reserved per-contract fees |
+| Budget split | Each fight still open gets an equal slice of the money left for its phase; money from skipped fights flows to the rest |
+| Sizing | Slice × conviction: a 10% Kelly edge gets one slice, stronger edges up to 2 slices, weaker ones less; any fight with an edge may buy at least 1 contract; also limited by depth |
+| Per-fight ceiling | 40% of the event budget across all of a fight's bets |
+| In-fight reserve | With `--in-fight`, pre-fight bets use at most 70%; the rest waits for live and between-rounds trades |
+| Retries | Missed/partial IOC orders retried while the edge lasts: pre-fight up to 6 tries 30 s apart; live rounds up to 12 tries 1 s apart; breaks up to 3 tries 4 s apart |
+| Probability haircut | None by default (`RiskPolicy.probability_haircut`) |
+| Minimum edge | 3¢ expected profit per $1 contract after the reserved taker fee |
 | Maximum spread | 8 cents |
-| Fighter history | At least three UFC fights for both fighters |
+| Fighter history | At least one UFC fight for both fighters (true debuts skipped) |
 | Feed receipt/source age | At most 10 / 15 seconds; future/missing times rejected |
 | Quote age | At most 5 seconds, with a fresh REST confirmation before submission |
 | Market close buffer | 60 seconds; an ESPN started-bout signal blocks immediately |
