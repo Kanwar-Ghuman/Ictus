@@ -29,12 +29,14 @@ from octagon.inplay.live import BREAK_STATUS, fight_progress
 from octagon.trading.kalshi import KalshiClient, KalshiOrderBook, KalshiTransportError
 from octagon.trading.ledger import Ledger
 from octagon.trading.risk import (
-    RiskPolicy, bout_allowance, decimal, edge_of, money, size_candidate,
+    RiskPolicy, bout_allowance, decimal, edge_of, money, size_candidate, taker_fee,
 )
+from octagon.trading.signal import lag_block_reason, pure_stack
 
 READINESS_REASONS = [
     "No independently verified Kalshi trading edge: live orders can lose the whole budget.",
-    "Pre-fight forecasts come from the skill model; in-fight reprices from the live clock and stats.",
+    "Pre-fight orders use the pure market stack and abstain when the card has no vig-free line.",
+    "In-fight orders wait for the break. A mid-round clock is not a trained snapshot.",
     "Historical sportsbook backtests do not establish profitable Kalshi execution.",
     "Paper fills are simulations; demo fills use Kalshi's separate test environment.",
 ]
@@ -67,6 +69,16 @@ def age_is_valid(value: Any, now: float, maximum: float) -> bool:
     except ValueError:
         return False
     return -2 <= age <= maximum
+
+
+def _probability(value, label: str) -> Decimal:
+    try:
+        probability = decimal(value)
+    except (ValueError, ArithmeticError):
+        raise ValueError(f"A finite {label} probability is required") from None
+    if not 0 < probability < 1:
+        raise ValueError(f"A finite {label} probability is required")
+    return probability
 
 
 def rest_quotes(payload: dict) -> dict[str, tuple[Decimal, Decimal]]:
@@ -186,14 +198,26 @@ class TradingEngine:
                 seen_tickers.add(ticker)
                 seen_bouts.add(bout_id)
                 seen_pairs.add((f1, f2))
-                probability = decimal(bout.get("p_skill"))
-                if not 0 < probability < 1:
-                    raise ValueError("A finite skill-model probability is required")
+                p_skill = _probability(bout.get("p_skill"), "skill-model")
+                p_market = bout.get("p_market")
+                if p_market is None:
+                    order_p, layer = p_skill, "skill"
+                    market_text = None
+                else:
+                    p_market = _probability(p_market, "market")
+                    order_p, layer = pure_stack(p_skill, p_market), "pure_stack"
+                    market_text = str(p_market)
+                p_book = bout.get("p_book")
+                book_text = None if p_book is None else str(_probability(p_book, "sportsbook"))
                 market = self.client.get_market(ticker)
                 self._validate_identity(market, mapping)
                 mapped.append({key: mapping[key] for key in (
                     "ticker", "bout_id", "f1", "f2", "yes_fighter", "confirmed"
-                )} | {"probability_f1": str(probability),
+                )} | {"probability_f1": str(order_p),
+                      "p_skill": str(p_skill),
+                      "p_market": market_text,
+                      "p_book": book_text,
+                      "probability_layer": layer,
                       "f1_ufc_fights": bout.get("f1_ufc_fights"),
                       "scheduled_rounds": bout.get("scheduled_rounds"),
                       "f2_ufc_fights": bout.get("f2_ufc_fights"),
@@ -425,21 +449,26 @@ class TradingEngine:
         if elapsed >= scheduled:
             raise ValueError("Final round finished; awaiting the result")
         round_k = int(elapsed) if phase == "break" else int(bout["round"])
-        if phase == "break":
-            seen = self.break_seen.get((mapping["bout_id"], round_k))
-            if seen is None or time.monotonic() - seen < self.policy.min_break_seconds:
-                raise ValueError("Break just started; waiting for round totals to settle")
-            if time.monotonic() - seen > self.policy.max_break_seconds:
-                raise ValueError("Too late in the break; the next round may already be live")
-            key = f'{mapping["bout_id"]}:r{round_k}'
-        else:
-            key = f'{mapping["bout_id"]}:l{round_k}'
+        if phase != "break":
+            raise ValueError(
+                "Mid-round prices are outside the trained end-of-round snapshots; "
+                "waiting for the break"
+            )
+        seen = self.break_seen.get((mapping["bout_id"], round_k))
+        if seen is None or time.monotonic() - seen < self.policy.min_break_seconds:
+            raise ValueError("Break just started; waiting for round totals to settle")
+        if time.monotonic() - seen > self.policy.max_break_seconds:
+            raise ValueError("Too late in the break; the next round may already be live")
+        key = f'{mapping["bout_id"]}:r{round_k}'
         prior = self.prefight.get(mapping["ticker"])
         if prior and now - prior["at"] <= self.policy.prefight_max_age_seconds:
             p_prior, source = decimal(prior["p_f1"]), "kalshi pre-fight price"
             card_reason = self._card_reason(mapping, now, need_history=False)
         else:
-            p_prior, source = decimal(mapping["probability_f1"]), "skill model"
+            skill = mapping.get("p_skill")
+            if skill is None:
+                raise ValueError("No skill prior for the in-play model")
+            p_prior, source = decimal(skill), "skill model"
             card_reason = self._card_reason(mapping, now, need_history=True)
         if card_reason:
             raise ValueError(card_reason)
@@ -574,10 +603,14 @@ class TradingEngine:
                         reason = self._feed_reason(mapping, time.time())
                         if reason:
                             raise ValueError(reason)
-                        decision.update(phase="pre-fight")
+                        if mapping.get("p_market") is None:
+                            raise ValueError("No vig-free line; pre-fight orders abstain")
+                        decision.update(phase="pre-fight", layer=mapping.get("probability_layer"))
                         family, attempt = self._next_attempt(
                             orders, mapping["bout_id"], kind="prefight", label="before the fight")
                         p_f1 = decimal(mapping["probability_f1"])
+                        decision["p_f1"] = float(p_f1)
+                        decision["event_id"] = self.config["espn_event_id"]
                     market, multiplier = self._market_context(mapping)
                     if self.market_stream_required:
                         # The book is cleared on disconnect or sequence gap and
@@ -598,12 +631,30 @@ class TradingEngine:
                     if time.monotonic() - began > self.policy.max_book_age_seconds:
                         raise ValueError("Market quote retrieval was too slow")
                     spread = quotes["yes"][0] + quotes["no"][0] - 1
+                    decision["yes_bid"] = str(1 - quotes["no"][0])
+                    decision["yes_ask"] = str(quotes["yes"][0])
                     event = self.ledger.event(self.session_id)
                     p_yes = p_f1 if mapping["yes_fighter"] == mapping["f1"] else 1 - p_f1
+                    book_f1 = decimal(mapping["p_book"]) if mapping.get("p_book") else None
+                    if self.policy.venue_lag and not in_fight and book_f1 is None:
+                        raise ValueError("Venue-lag rule is on and this bout has no sportsbook price")
                     room = self._budget_room(orders, mapping, in_fight, event)
-                    candidates, best = [], None
+                    candidates, best, lag_reason = [], None, None
                     for side, probability in (("yes", p_yes), ("no", 1 - p_yes)):
                         price, depth = quotes[side]
+                        if self.policy.venue_lag and not in_fight:
+                            book_side = book_f1 if side == "yes" else 1 - book_f1
+                            if mapping["yes_fighter"] != mapping["f1"]:
+                                book_side = (1 - book_f1) if side == "yes" else book_f1
+                            blocked = lag_block_reason(
+                                probability, book_side, price, spread,
+                                taker_fee(price, 1, multiplier),
+                                min_lag=self.policy.min_venue_lag,
+                                max_gap=self.policy.max_book_gap,
+                            )
+                            if blocked:
+                                lag_reason = blocked
+                                continue
                         unit_cost, edge, kelly = edge_of(probability, price, multiplier, self.policy)
                         allowance = bout_allowance(kelly=kelly, policy=self.policy,
                                                    unit_cost=unit_cost, **room)
@@ -617,6 +668,8 @@ class TradingEngine:
                         if candidate:
                             candidates.append(candidate)
                     if not candidates:
+                        if lag_reason and best is None:
+                            raise ValueError(lag_reason)
                         raise ValueError(self._no_trade_reason(mapping, spread, *best))
                     candidate = max(candidates, key=lambda c: c.net_edge)
                     if self.mode != "paper":
@@ -644,7 +697,9 @@ class TradingEngine:
                                      "price_dollars": str(candidate.price),
                                      "contracts": candidate.count,
                                      "cost_dollars": str(candidate.estimated_cost),
-                                     "edge": float(candidate.net_edge)})
+                                     "fee_dollars": str(candidate.estimated_cost - candidate.price * candidate.count),
+                                     "edge": float(candidate.net_edge),
+                                     "event_id": self.config["espn_event_id"]})
                     # Stop can arrive between reservation and dispatch.
                     if not self.running.is_set():
                         self.ledger.finish(client_id, Decimal(0), Decimal(0), "canceled")

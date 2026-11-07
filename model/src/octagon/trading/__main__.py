@@ -9,6 +9,16 @@ from octagon.trading.risk import RiskPolicy
 from octagon.trading.service import run
 
 
+def unit_interval(text: str) -> Decimal:
+    try:
+        value = Decimal(text)
+    except InvalidOperation:
+        raise argparse.ArgumentTypeError("Expected a number") from None
+    if not value.is_finite() or not 0 <= value < 1:
+        raise argparse.ArgumentTypeError("Must be at least 0 and less than 1")
+    return value
+
+
 def fraction(text: str) -> Decimal:
     try:
         value = Decimal(text)
@@ -44,6 +54,10 @@ def main(argv=None):
     defaults = RiskPolicy()
     parser.add_argument("--min-edge", type=fraction, default=defaults.min_net_edge,
                         help="Minimum expected profit per $1 contract after fees (default 0.03)")
+    parser.add_argument("--draw-rate", type=unit_interval, default=defaults.draw_settlement_rate,
+                        help="Share of 50-cent draw/no-contest settlements (default 0 until measured)")
+    parser.add_argument("--venue-lag", action="store_true",
+                        help="Also require the Kalshi ask to lag a same-time sportsbook price")
     parser.add_argument("--max-bout-fraction", type=fraction, default=defaults.max_bout_fraction,
                         help="Most of the event budget one fight may use across all its bets")
     parser.add_argument("--inplay-reserve", type=fraction, default=defaults.inplay_reserve,
@@ -73,7 +87,9 @@ def main(argv=None):
                         max_bout_fraction=args.max_bout_fraction,
                         inplay_reserve=args.inplay_reserve,
                         min_ufc_fights=args.min_ufc_fights,
-                        max_source_age_seconds=args.max_source_age_seconds)
+                        max_source_age_seconds=args.max_source_age_seconds,
+                        draw_settlement_rate=args.draw_rate,
+                        venue_lag=args.venue_lag)
     try:
         run(args.mode, args.port, args.gateway_url, args.state_dir, environment,
             policy=policy, max_event_dollars=args.max_event_dollars,
