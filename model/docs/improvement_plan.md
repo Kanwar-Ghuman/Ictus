@@ -7,6 +7,30 @@ Reviewed November 6, 2026 against the committed evaluation reports
 This is a plan, not a claim that any change below is already profitable.
 The existing evidence says the opposite of "loosen the bot."
 
+## What the code does now
+
+Shipped with the plan, without a retrain. The fight database is not in this
+tree, so cardio slope, the opponent graph, and a refit of the in-play ratios
+are still waiting on `build-features` and a walk-forward.
+
+- `quality_win_rate` is elite wins over elite fights, and only once there are
+  two of them. `quality_n` is the count. The saved artifact, if you have one
+  locally, was fit on the old column. Rebuild and retrain before treating a
+  new feature table as the model the bot loads. Do not promote it unless the
+  validation stack log loss improves or stays inside 0.002.
+- `python -m octagon.trading.scorecard JOURNAL --settlements FILE` prints mean
+  closing-line value in cents, settlement ROI, and an event-block interval.
+  The close is the last pre-fight Kalshi mid in `observations.jsonl`.
+- Pre-fight orders use the pure stack, `a=1.00` and `b=0.29`, and abstain when
+  the bout has no `p_market`. `edge_of` applies `p + d·(0.5−p)`. `d` stays 0
+  until `--draw-rate` is set from the KXUFCFIGHT rules.
+- Mid-round orders are refused. Break orders are unchanged.
+- `--venue-lag` requires a same-time `p_book` and a Kalshi ask that lags it by
+  the fee, half the spread, and 2¢. The flag is off until a scorecard shows
+  pre-fight closing-line value at or above zero.
+- Sizing is the old policy: 40% bout cap, equal slices, one-contract floor.
+  That waits on the closing-line gate. Do not lower the 3¢ edge to get more bets.
+
 ## Verdict
 
 The winner model is a competent pre-fight picker and a losing bettor.

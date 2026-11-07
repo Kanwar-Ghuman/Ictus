@@ -87,6 +87,29 @@ def test_form_weights_recent_results_by_opponent_elo():
     assert snap["vs_wrestler_win_pct"] is None  # only one fight vs a wrestler
 
 
+def test_quality_win_rate_is_against_elites_only():
+    from octagon.features.build import PastFight
+
+    def fight(opponent_elo, result="win"):
+        return PastFight(date=date(2020, 1, 1), result=result, method="U-DEC",
+                         end_round=3, duration_s=900, stats=None, opp_stats=None,
+                         opp_elo_pre=opponent_elo, opponent="Opp")
+
+    # Two elite wins and five wins over ordinary opponents. The rate is 1, not 2/7.
+    mixed = form_snapshot([fight(1700), fight(1650)] + [fight(1400) for _ in range(5)],
+                          date(2021, 1, 1), 1500)
+    assert mixed["quality_n"] == 2
+    assert mixed["quality_win_rate"] == pytest.approx(1.0)
+    # One elite fight is a count, not a rate. Zero elite fights stay a zero count.
+    lone = form_snapshot([fight(1700)] + [fight(1400) for _ in range(5)],
+                         date(2021, 1, 1), 1500)
+    assert lone["quality_n"] == 1 and lone["quality_win_rate"] is None
+    untested = form_snapshot([fight(1400) for _ in range(4)], date(2021, 1, 1), 1500)
+    assert untested["quality_n"] == 0 and untested["quality_win_rate"] is None
+    split = form_snapshot([fight(1700, "win"), fight(1700, "loss")], date(2021, 1, 1), 1500)
+    assert split["quality_win_rate"] == pytest.approx(0.5)
+
+
 def test_loss_to_stronger_opponent_hurts_form_less():
     from dataclasses import replace
     from octagon.features.build import PastFight

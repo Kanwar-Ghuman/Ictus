@@ -22,9 +22,9 @@ def iso(seconds=0):
 
 def card():
     return {"slug": "test_card", "event": "UFC Test", "date": iso()[:10], "bouts": [
-        {"f1": "Alpha Fighter", "f2": "Bravo Fighter", "p_skill": 0.8,
+        {"f1": "Alpha Fighter", "f2": "Bravo Fighter", "p_skill": 0.8, "p_market": 0.8,
          "f1_ufc_fights": 8, "f2_ufc_fights": 8},
-        {"f1": "Charlie Fighter", "f2": "Delta Fighter", "p_skill": 0.8,
+        {"f1": "Charlie Fighter", "f2": "Delta Fighter", "p_skill": 0.8, "p_market": 0.8,
          "f1_ufc_fights": 8, "f2_ufc_fights": 8},
     ]}
 
@@ -361,6 +361,7 @@ def test_no_purchase_uses_no_liability_and_preserves_direction(tmp_path):
     engine, exchange = demo_engine(tmp_path)
     changed = card()
     changed["bouts"][0]["p_skill"] = 0.2
+    changed["bouts"][0]["p_market"] = 0.2
     engine.configure(request(), changed)
     engine.start()
     engine.tick()
@@ -713,5 +714,77 @@ def test_debut_fighter_blocked_but_one_fight_allowed(tmp_path):
     engine.configure(request(), one)
     engine.start()
     engine.update_feed(feed())
+    engine.tick()
+    assert engine.status()["orders"]
+
+
+def test_pre_fight_abstains_without_a_vig_free_line(tmp_path):
+    engine = TradingEngine(Ledger(tmp_path / "line.db"), Exchange())
+    bare = card()
+    bare["bouts"][0]["p_market"] = None
+    engine.configure(request(), bare)
+    engine.update_feed(feed())
+    engine.start()
+    engine.tick()
+    assert not engine.status()["orders"]
+    assert "vig-free" in engine.status()["decisions"][0]["reason"]
+
+
+def test_pre_fight_orders_the_pure_stack_not_raw_skill(tmp_path):
+    from octagon.trading.signal import pure_stack
+
+    engine = TradingEngine(Ledger(tmp_path / "stack.db"), Exchange())
+    priced = card()
+    priced["bouts"][0]["p_skill"] = 0.8
+    priced["bouts"][0]["p_market"] = 0.6
+    engine.configure(request(), priced)
+    stored = D(engine.config["mappings"][0]["probability_f1"])
+    assert stored == pure_stack(D("0.8"), D("0.6"))
+    assert stored != D("0.8")
+    assert engine.config["mappings"][0]["probability_layer"] == "pure_stack"
+    engine.update_feed(feed())
+    engine.start()
+    engine.tick()
+    decision = engine.status()["decisions"][0]
+    assert decision["action"] == "paper"
+    assert decision["layer"] == "pure_stack"
+    assert D(str(decision["p_f1"])) == stored
+
+
+def test_draw_rate_shrinks_a_favorite_and_helps_a_dog():
+    from octagon.trading.risk import edge_of
+
+    favorite = RiskPolicy(draw_settlement_rate=D("0.04"))
+    plain = RiskPolicy()
+    _, favored, _ = edge_of(D("0.70"), D("0.60"), D(1), favorite)
+    _, unadjusted, _ = edge_of(D("0.70"), D("0.60"), D(1), plain)
+    _, dog, _ = edge_of(D("0.30"), D("0.20"), D(1), favorite)
+    _, dog_plain, _ = edge_of(D("0.30"), D("0.20"), D(1), plain)
+    assert favored < unadjusted
+    assert dog > dog_plain
+
+
+def test_venue_lag_refuses_a_kalshi_ask_the_sportsbook_does_not_beat(tmp_path):
+    engine = TradingEngine(Ledger(tmp_path / "lag.db"), Exchange(),
+                           policy=RiskPolicy(venue_lag=True))
+    priced = card()
+    # Book, stack, and the 50¢ ask all sit together. Skill is not allowed to invent a lag.
+    priced["bouts"][0]["p_skill"] = 0.52
+    priced["bouts"][0]["p_market"] = 0.52
+    priced["bouts"][0]["p_book"] = 0.52
+    engine.configure(request(), priced)
+    engine.update_feed(feed())
+    engine.start()
+    engine.tick()
+    assert not engine.status()["orders"]
+    assert "not lagging" in engine.status()["decisions"][0]["reason"]
+    slow = card()
+    slow["bouts"][0]["p_skill"] = 0.8
+    slow["bouts"][0]["p_market"] = 0.8
+    slow["bouts"][0]["p_book"] = 0.8
+    engine.stop()
+    engine.configure(request(), slow)
+    engine.update_feed(feed())
+    engine.start()
     engine.tick()
     assert engine.status()["orders"]

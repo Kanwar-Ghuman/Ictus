@@ -35,6 +35,15 @@ def money(value: object) -> Decimal:
 class RiskPolicy:
     # Optional extra margin subtracted from the model probability (0 = trust it).
     probability_haircut: Decimal = Decimal("0")
+    # Share of fights that settle at 50 cents (draw / no-contest) under the
+    # KXUFCFIGHT rules. 0 until that rate is measured. Expected payout is
+    # p + d * (0.5 - p): favorites get cheaper, underdogs get a little dearer.
+    draw_settlement_rate: Decimal = Decimal("0")
+    # Off until a scorecard shows pre-fight closing-line value at or above zero.
+    # When on, a pre-fight buy also has to beat a same-time sportsbook.
+    venue_lag: bool = False
+    min_venue_lag: Decimal = Decimal("0.02")
+    max_book_gap: Decimal = Decimal("0.08")
     # Minimum expected profit per $1 contract after the reserved taker fee.
     min_net_edge: Decimal = Decimal("0.03")
     # A bet with this Kelly fraction gets exactly one slice; stronger edges get
@@ -97,9 +106,22 @@ def edge_of(probability: Decimal, price: Decimal, fee_multiplier: Decimal,
     # Reserve a cent-rounded fee for *each* contract: splitting fills must not
     # exceed the reservation due to exchange fee rounding.
     unit_cost = price + taker_fee(price, 1, fee_multiplier)
-    edge = max(ZERO, probability - policy.probability_haircut) - unit_cost
+    belief = min(ONE, max(ZERO, probability - policy.probability_haircut))
+    payout = contract_payout(belief, policy.draw_settlement_rate)
+    edge = max(ZERO, payout) - unit_cost
     kelly = max(ZERO, edge / (ONE - unit_cost)) if unit_cost < ONE else ZERO
     return unit_cost, edge, kelly
+
+
+def contract_payout(probability: Decimal, draw_rate: Decimal) -> Decimal:
+    """Expected $1-contract payout when draws and no-contests pay 50 cents.
+
+    ``probability`` is P(this side wins | a decisive result is not required).
+    The training labels are decisive, so pass P(win) and the measured draw rate.
+    """
+    if not ZERO <= draw_rate < ONE:
+        raise ValueError("Draw settlement rate must be in [0, 1)")
+    return probability + draw_rate * (Decimal("0.5") - probability)
 
 
 def bout_allowance(*, kelly: Decimal, budget: Decimal, remaining: Decimal,

@@ -16,7 +16,8 @@ trading edge: see [model evidence](trading_model_readiness.md).
 - Optional authenticated Kalshi market WebSocket snapshots/deltas, with
   subscription sequence checks and invalidation on a gap or disconnect.
   Public REST quotes work without Kalshi credentials in paper mode.
-- A conservative buy-only policy using frozen `p_skill`, actual ask depth,
+- A conservative buy-only policy using the pure market stack (vig-free line plus a
+  fixed skill residual), actual ask depth,
   fee metadata, and small allocations. It can leave the entire budget unused.
 - A persistent SQLite order ledger. Reservations precede submission; uncertain
   outcomes retain money and pause the session. Restart always returns paused.
@@ -173,15 +174,19 @@ uv run --extra trading python -m octagon.trading --mode paper --in-fight \
   captured, the skill model's `p_skill` with the UFC-history rule —
   plus ESPN's cumulative totals (strikes by target, takedowns, control time,
   knockdowns, submission attempts).
-- Live round: elapsed time is completed rounds plus how far the five-minute
-  clock has run. The model was fit on end-of-round snapshots, so a mid-round
-  price is an extrapolation. ESPN totals during a round are partial and often
-  ~30 s behind the broadcast. A missing, blank, or over-five-minute clock skips
-  the bout. The worker checks about once a second (`live_retry_seconds`) and
-  may buy up to 12 times in that round (`<bout>:l<k>`, `<bout>:l<k>:2`, ...).
+- Live round: the worker still reads the clock, and a missing, blank, or
+  over-five-minute clock skips the bout. It does not buy. The in-play model was
+  fit on end-of-round snapshots, and ESPN totals during a round are partial and
+  often ~30 s behind the broadcast, so a mid-round order is refused.
 - Break: ESPN must report `STATUS_END_OF_ROUND`; the bot waits 10 s for round
   totals to settle and refuses after 40 s. Up to 3 attempts, 4 s apart
   (`<bout>:r<k>`). No trades after the final round, and finished bouts stay blocked.
+- Pre-fight orders need a vig-free `p_market` on the bout. The order probability
+  is `sigmoid(logit(p_market) + 0.29·logit(p_skill))`, the train-era stack.
+  With no line the bout is skipped. `--venue-lag` also requires `p_book` and a
+  Kalshi ask that lags that book by the fee, half the spread, and 2¢. It is off
+  by default. `--draw-rate` is the 50¢ draw/no-contest share inside the edge;
+  leave it at 0 until that rate is measured on the KXUFCFIGHT rules.
 - Every attempt on a bout shares its dollar cap. Probabilities are clamped to [1%, 99%].
 
 The model is far more accurate than the pre-fight prior (2024–26 test: 63% → 75%
@@ -210,7 +215,7 @@ break-time prices before risking money.
 | Sizing | Slice × conviction: a 10% Kelly edge gets one slice, stronger edges up to 2 slices, weaker ones less; any fight with an edge may buy at least 1 contract; also limited by depth |
 | Per-fight ceiling | 40% of the event budget across all of a fight's bets |
 | In-fight reserve | With `--in-fight`, pre-fight bets use at most 70%; the rest waits for live and between-rounds trades |
-| Retries | Missed/partial IOC orders retried while the edge lasts: pre-fight up to 6 tries 30 s apart; live rounds up to 12 tries 1 s apart; breaks up to 3 tries 4 s apart |
+| Retries | Missed/partial IOC orders retried while the edge lasts: pre-fight up to 6 tries 30 s apart; breaks up to 3 tries 4 s apart. Mid-round orders are not sent |
 | Probability haircut | None by default (`RiskPolicy.probability_haircut`) |
 | Minimum edge | 3¢ expected profit per $1 contract after the reserved taker fee |
 | Maximum spread | 8 cents |

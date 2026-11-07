@@ -80,8 +80,11 @@ def form_snapshot(
             float((on_date - ko_losses[-1].date).days) if ko_losses else None),
         "form_l3": _form([f for f in decisive[-3:]]),
         "form_l5": _form([f for f in decisive[-5:]]),
+        # Rate against elite opposition, not "elite wins / whole career".
+        # One elite fight is not a rate: leave it missing and keep the count.
+        "quality_n": float(len(quality)) if decisive else None,
         "quality_win_rate": (
-            len(quality_wins) / len(decisive) if decisive else None),
+            len(quality_wins) / len(quality) if len(quality) >= 2 else None),
         "comeback_rate": (
             sum(comebacks) / len(comebacks) if comebacks else None),
         "war_share_l5": (

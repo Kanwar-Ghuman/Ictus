@@ -95,6 +95,7 @@ def inplay_card():
     for bout in c["bouts"]:
         bout["scheduled_rounds"] = 3
         bout["p_skill"] = 0.5  # no pre-fight edge: isolate the in-fight path
+        bout["p_market"] = None
     return c
 
 
@@ -327,39 +328,23 @@ def live_price_model():
     return InplayModel(scale=dict.fromkeys(FEATURES, 1.0), coef=coef, meta={})
 
 
-def test_live_clock_updates_the_price_then_trades_once_a_second(tmp_path):
+def test_mid_round_clock_does_not_trade(tmp_path):
     engine, exchange = in_fight_engine(tmp_path, live_price_model())
     one_contract(exchange)
     engine.update_feed(feed())
     engine.start()
     engine.tick()
-    engine.update_feed(live_feed(clock="4:30", round_k=1))
-    engine.tick()
-    assert engine.decisions[0]["action"] == "skip"
-    assert "No edge" in engine.decisions[0]["reason"]
-    assert engine.decisions[0]["p_f1"] < 0.6
-    assert not engine.ledger.orders(engine.session_id)
-    engine.update_feed(live_feed(clock="0:30", round_k=3))
-    engine.tick()
-    decision = engine.decisions[0]
-    assert decision["action"] == "paper" and decision["phase"] == "live round 3"
-    assert decision["p_f1"] > 0.7
-    assert [o["bout_id"] for o in engine.ledger.orders(engine.session_id)] == ["1:l3"]
-    engine.tick()
-    assert "Waiting" in engine.decisions[0]["reason"]
-    assert engine.decisions[0]["p_f1"] > 0.7
-    engine.last_attempt["1:l3"] -= engine.policy.live_retry_seconds
-    engine.tick()
-    keys = sorted(o["bout_id"] for o in engine.ledger.orders(engine.session_id))
-    assert keys == ["1:l3", "1:l3:2"]
-    for _ in range(engine.policy.max_live_attempts + 4):
-        engine.last_attempt.clear()
+    for clock, round_k in (("4:30", 1), ("0:30", 3)):
+        engine.update_feed(live_feed(clock=clock, round_k=round_k))
         engine.tick()
-    orders = engine.ledger.orders(engine.session_id)
-    assert len(orders) == engine.policy.max_live_attempts
-    assert all(o["bout_id"] == "1:l3" or o["bout_id"].startswith("1:l3:") for o in orders)
-    spent = sum(D(o["cost_dollars"]) + D(o["reserved_dollars"]) for o in orders)
-    assert spent <= D(request()["budget_dollars"]) * engine.policy.max_bout_fraction
+        assert engine.decisions[0]["action"] == "skip"
+        assert "trained end-of-round" in engine.decisions[0]["reason"]
+        assert not engine.ledger.orders(engine.session_id)
+    engine.update_feed(break_feed(1))
+    settle_break(engine)
+    engine.tick()
+    assert engine.decisions[0]["action"] == "paper"
+    assert engine.decisions[0]["phase"] == "after round 1"
 
 
 def test_in_fight_checks_run_on_the_live_retry_cadence(tmp_path):
