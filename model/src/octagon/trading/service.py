@@ -164,7 +164,8 @@ async def collect_markets(engine: TradingEngine):
                     await asyncio.to_thread(engine.update_book, json.loads(raw))
         except asyncio.CancelledError:
             raise
-        except Exception:
+        except Exception as exc:
+            engine.record("market_feed_error", {"error": type(exc).__name__})
             engine.disconnect_book()
             await asyncio.sleep(delay)
             delay = min(delay * 2, 30)

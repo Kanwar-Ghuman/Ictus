@@ -40,6 +40,27 @@ def _seconds(text: str) -> int:
     return int(match.group(1)) * 60 + int(match.group(2))
 
 
+# Bottom fighter, opponent has at least twice the control. A sub attempt
+# only counts when the gap is still under three minutes.
+HELD_GAP_SECONDS = 90
+HELD_CONTROL_RATIO = 2
+DOMINANT_GAP_SECONDS = 180
+
+
+def held_without_threat(stats: dict, opponent: dict) -> bool:
+    """Fighter is being controlled and has no knockdown or live submission path."""
+    gap = opponent.get("ctrl", 0) - stats.get("ctrl", 0)
+    if gap < HELD_GAP_SECONDS:
+        return False
+    if opponent.get("ctrl", 0) < HELD_CONTROL_RATIO * max(stats.get("ctrl", 0), 1):
+        return False
+    if stats.get("kd", 0) > 0:
+        return False
+    if stats.get("sub", 0) > 0 and gap < DOMINANT_GAP_SECONDS:
+        return False
+    return True
+
+
 def parse_stats(stats: dict) -> dict[str, float]:
     """ESPN fighter stats -> cumulative model stats (see model.DIFF_STATS)."""
     out: dict[str, float] = {}

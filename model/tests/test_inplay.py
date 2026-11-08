@@ -144,7 +144,7 @@ def test_in_fight_trades_in_break_only_after_totals_settle_with_bounded_retries(
     engine.tick()
     decision = engine.decisions[0]
     assert decision["action"] == "paper" and decision["phase"] == "after round 1"
-    assert decision["prior"] == "kalshi pre-fight price"
+    assert decision["prior"] == "initial pick"
     orders = engine.ledger.orders(engine.session_id)
     assert [o["bout_id"] for o in orders] == ["1:r1"]
     engine.tick()
@@ -207,7 +207,7 @@ def test_finished_bout_is_blocked_and_skill_prior_needs_history(tmp_path):
     engine.update_feed(break_feed(1))  # no pre-fight Kalshi price was ever captured
     settle_break(engine)
     engine.tick()
-    assert engine.decisions[0].get("prior") == "skill model"
+    assert engine.decisions[0].get("prior") == "initial pick"
     final = break_feed(1)
     final["data"][0].update(status="final", status_detail="STATUS_FINAL")
     engine.update_feed(final)
@@ -328,23 +328,45 @@ def live_price_model():
     return InplayModel(scale=dict.fromkeys(FEATURES, 1.0), coef=coef, meta={})
 
 
-def test_mid_round_clock_does_not_trade(tmp_path):
+def test_live_clock_can_change_the_price_and_trade(tmp_path):
     engine, exchange = in_fight_engine(tmp_path, live_price_model())
     one_contract(exchange)
     engine.update_feed(feed())
     engine.start()
     engine.tick()
-    for clock, round_k in (("4:30", 1), ("0:30", 3)):
-        engine.update_feed(live_feed(clock=clock, round_k=round_k))
-        engine.tick()
-        assert engine.decisions[0]["action"] == "skip"
-        assert "trained end-of-round" in engine.decisions[0]["reason"]
-        assert not engine.ledger.orders(engine.session_id)
-    engine.update_feed(break_feed(1))
-    settle_break(engine)
+    engine.update_feed(live_feed(clock="4:30", round_k=1))
     engine.tick()
-    assert engine.decisions[0]["action"] == "paper"
-    assert engine.decisions[0]["phase"] == "after round 1"
+    early = engine.decisions[0]
+    assert early["action"] == "skip" and "No edge" in early["reason"]
+    assert early["phase"] == "live round 1"
+    engine.update_feed(live_feed(clock="0:30", round_k=3))
+    engine.tick()
+    late = engine.decisions[0]
+    assert late["action"] == "paper" and late["phase"] == "live round 3"
+    assert late["p_f1"] != early["p_f1"]
+
+
+def test_control_without_a_finish_is_not_a_buy(tmp_path):
+    assert live_mod.held_without_threat(stats(ctrl=6, kd=0, sub=1), stats(ctrl=9 * 60 + 12))
+    assert not live_mod.held_without_threat(stats(ctrl=9 * 60 + 12), stats(ctrl=6, kd=0, sub=1))
+    assert not live_mod.held_without_threat(stats(ctrl=6, kd=1), stats(ctrl=9 * 60 + 12))
+    engine, exchange = in_fight_engine(tmp_path, toy_model())
+    priced = inplay_card()
+    priced["bouts"][0]["p_skill"] = 0.70
+    engine.configure(request(), priced)
+    exchange.get_orderbook = lambda ticker: {"orderbook_fp": {
+        "yes_dollars": [["0.0500", "100.00"]], "no_dollars": [["0.9400", "100.00"]]}}
+    buried = {**QUIET, "timeInControl": "0:06", "submissions": "1", "knockDowns": "0"}
+    top = {**ESPN_STATS, "timeInControl": "9:12", "submissions": "0", "knockDowns": "0"}
+    message = break_feed(3, detail="STATUS_IN_PROGRESS", a_stats=buried, b_stats=top)
+    message["data"][0]["clock"] = "2:00"
+    engine.update_feed(feed())
+    engine.start()
+    engine.update_feed(message)
+    engine.tick()
+    assert engine.ledger.orders(engine.session_id) == []
+    assert "being controlled" in engine.decisions[0]["reason"]
+    assert "Alpha Fighter" in engine.decisions[0]["reason"]
 
 
 def test_in_fight_checks_run_on_the_live_retry_cadence(tmp_path):

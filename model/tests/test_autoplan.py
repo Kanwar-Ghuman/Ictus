@@ -58,9 +58,13 @@ def plan(in_fight=False, markets=MARKETS):
 
 def test_names_fold_accents_punctuation_and_spacing():
     assert same_name("Ode' Osbourne", "Ode Osbourne")
+    assert same_name("Waldo Cortes-Acosta", "Waldo Cortes Acosta")
     assert same_name("JeongYeong Lee", "Jeong Yeong Lee")
     assert same_name("Lucia Szabová", "Lucia Szabova")
+    assert same_name("Jose Delano", "Jose Mauro Delano")
+    assert same_name("Seokhyeon Ko", "Seok Hyun Ko")
     assert not same_name("Tom Nolan", "Eric Nolan")
+    assert not same_name("Jon Jones", "John Jones")
 
 
 def test_plan_maps_every_fight_and_explains_exclusions():

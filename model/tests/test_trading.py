@@ -377,14 +377,55 @@ def test_timeout_keeps_reservation_across_restart_and_never_retries(tmp_path):
     exchange.raise_on_submit = KalshiTransportError("timeout", ambiguous=True)
     engine.start()
     engine.tick()
-    assert not engine.running.is_set()
+    engine.tick()
+    assert engine.running.is_set()
     assert D(engine.status()["event"]["reserved_dollars"]) > 0
+    assert len(exchange.sent) == 1
+    engine.stop()
     engine.reconcile()
     assert D(engine.status()["event"]["reserved_dollars"]) > 0
     recovered = TradingEngine(engine.ledger, exchange, mode="demo")
     with pytest.raises(ValueError, match="Unresolved"):
         recovered.start()
     recovered.tick()
+    assert len(exchange.sent) == 1
+
+
+def test_a_failed_fill_read_does_not_stop_the_session(tmp_path):
+    engine, exchange = demo_engine(tmp_path)
+    engine.sleep = lambda seconds: None
+
+    def unread(order_id):
+        raise KalshiTransportError("read failed", status_code=503, ambiguous=False)
+
+    exchange.get_order = unread
+    engine.start()
+    engine.tick()
+    engine.tick()
+    assert engine.running.is_set()
+    assert D(engine.status()["event"]["reserved_dollars"]) > 0
+    assert len(exchange.sent) == 1
+
+
+def test_lagging_fill_clears_on_the_next_pass_without_a_resume(tmp_path):
+    engine, exchange = demo_engine(tmp_path)
+    engine.sleep = lambda seconds: None
+    real_fills, calls = exchange.list_fills, []
+
+    def lagging(order_id):
+        calls.append(order_id)
+        return [] if len(calls) < 5 else real_fills(order_id)
+
+    exchange.list_fills = lagging
+    engine.start()
+    engine.tick()
+    assert engine.running.is_set()
+    assert D(engine.status()["event"]["reserved_dollars"]) > 0
+    assert len(exchange.sent) == 1
+    engine.tick()
+    assert engine.running.is_set()
+    assert engine.status()["orders"][0]["status"] == "demo_filled"
+    assert D(engine.status()["event"]["reserved_dollars"]) == 0
     assert len(exchange.sent) == 1
 
 
@@ -428,7 +469,8 @@ def test_incomplete_or_invalid_fills_never_release_reservation(tmp_path, mutatio
     engine.start()
     engine.tick()
     assert D(engine.status()["event"]["reserved_dollars"]) > 0
-    assert not engine.running.is_set()
+    # A late fill record is retried on the next pass. A bad record stops the bot.
+    assert engine.running.is_set() is (mutation == "missing")
 
 
 def test_journal_prevents_budget_reset_and_recovers_last_selected_event(setup):
@@ -614,6 +656,44 @@ def test_quiet_but_connected_market_stream_is_not_stale(setup):
     assert engine.status()["market_connected"] is False
 
 
+def test_dropped_market_stream_still_trades_the_fresh_quote(setup):
+    engine, _exchange = setup
+    engine.market_stream_required = True
+    engine.disconnect_book()
+    engine.start()
+    engine.tick()
+    assert engine.status()["orders"]
+    assert all("websocket" not in d["reason"] for d in engine.status()["decisions"])
+
+
+def _seed_fill(engine, *, side, price, count=6):
+    with engine.ledger.connection() as db:
+        db.execute(
+            "INSERT INTO orders(id,session_id,bout_id,ticker,side,count,price,reserved,spent,status,filled_count) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+            ("seed", engine.session_id, "1:r1", "WIN-0", side, count, price, 0, 100000,
+             "paper_filled", str(count)),
+        )
+
+
+def test_high_odds_position_is_not_flipped(setup):
+    engine, _exchange = setup
+    _seed_fill(engine, side="no", price="0.2400")
+    engine.start()
+    engine.tick()
+    assert [o for o in engine.status()["orders"] if o["side"] == "yes"] == []
+    assert any("Sticking with Bravo Fighter" in d["reason"] for d in engine.status()["decisions"])
+
+
+def test_high_odds_position_can_still_be_added_to(setup):
+    engine, _exchange = setup
+    _seed_fill(engine, side="yes", price="0.2400")
+    engine.start()
+    engine.tick()
+    added = [o for o in engine.status()["orders"] if o["id"] != "seed"]
+    assert added and all(o["side"] == "yes" for o in added)
+
+
 def test_oct31_brown_smith_edge_now_trades():
     # Model 38% vs a 29¢ ask: ~7¢ edge after fees. The old 5pt haircut + 4pt bar skipped it.
     result = candidate(probability=D("0.3795"), price=D("0.29"), allowance=D("1.00"))
@@ -730,24 +810,22 @@ def test_pre_fight_abstains_without_a_vig_free_line(tmp_path):
     assert "vig-free" in engine.status()["decisions"][0]["reason"]
 
 
-def test_pre_fight_orders_the_pure_stack_not_raw_skill(tmp_path):
-    from octagon.trading.signal import pure_stack
-
+def test_pre_fight_orders_the_model_pick_not_the_market(tmp_path):
     engine = TradingEngine(Ledger(tmp_path / "stack.db"), Exchange())
     priced = card()
     priced["bouts"][0]["p_skill"] = 0.8
     priced["bouts"][0]["p_market"] = 0.6
+    priced["bouts"][0]["p_f1_wins"] = 0.42
     engine.configure(request(), priced)
     stored = D(engine.config["mappings"][0]["probability_f1"])
-    assert stored == pure_stack(D("0.8"), D("0.6"))
-    assert stored != D("0.8")
-    assert engine.config["mappings"][0]["probability_layer"] == "pure_stack"
+    assert stored == D("0.42")
+    assert engine.config["mappings"][0]["probability_layer"] == "initial"
     engine.update_feed(feed())
     engine.start()
     engine.tick()
     decision = engine.status()["decisions"][0]
     assert decision["action"] == "paper"
-    assert decision["layer"] == "pure_stack"
+    assert decision["layer"] == "initial"
     assert D(str(decision["p_f1"])) == stored
 
 

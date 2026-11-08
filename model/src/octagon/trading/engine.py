@@ -25,28 +25,32 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-from octagon.inplay.live import BREAK_STATUS, fight_progress
+from octagon.inplay.live import BREAK_STATUS, fight_progress, held_without_threat
 from octagon.trading.kalshi import KalshiClient, KalshiOrderBook, KalshiTransportError
 from octagon.trading.ledger import Ledger
 from octagon.trading.risk import (
     RiskPolicy, bout_allowance, decimal, edge_of, money, size_candidate, taker_fee,
 )
-from octagon.trading.signal import lag_block_reason, pure_stack
+from octagon.trading.signal import lag_block_reason
 
 READINESS_REASONS = [
     "No independently verified Kalshi trading edge: live orders can lose the whole budget.",
-    "Pre-fight orders use the pure market stack and abstain when the card has no vig-free line.",
-    "In-fight orders wait for the break. A mid-round clock is not a trained snapshot.",
+    "Pre-fight orders use the frozen card pick and abstain when the card has no vig-free line.",
+    "In-fight orders reprice from the live clock. A fighter already held under 50 cents is not flipped.",
     "Historical sportsbook backtests do not establish profitable Kalshi execution.",
     "Paper fills are simulations; demo fills use Kalshi's separate test environment.",
 ]
 IDENTIFIER = re.compile(r"^[A-Za-z0-9_-]{1,160}$")
 IDLE_DECISION_SECONDS = 2.0
+# A contract bought under 50 cents is the side we keep.
+HIGH_ODDS_PRICE = Decimal("0.50")
 
 
 def normalized_name(name: str) -> str:
+    # A hyphen is a space, so "Cortes-Acosta" and "Cortes Acosta" are one fighter.
+    folded = unicodedata.normalize("NFKD", name).casefold().replace("-", " ")
     return " ".join("".join(
-        c for c in unicodedata.normalize("NFKD", name).casefold()
+        c for c in folded
         if not unicodedata.combining(c) and (c.isalnum() or c.isspace())
     ).split())
 
@@ -200,13 +204,12 @@ class TradingEngine:
                 seen_pairs.add((f1, f2))
                 p_skill = _probability(bout.get("p_skill"), "skill-model")
                 p_market = bout.get("p_market")
-                if p_market is None:
-                    order_p, layer = p_skill, "skill"
-                    market_text = None
-                else:
-                    p_market = _probability(p_market, "market")
-                    order_p, layer = pure_stack(p_skill, p_market), "pure_stack"
-                    market_text = str(p_market)
+                market_text = None
+                if p_market is not None:
+                    market_text = str(_probability(p_market, "market"))
+                raw_pick = bout.get("p_f1_wins")
+                order_p = p_skill if raw_pick is None else _probability(raw_pick, "initial-pick")
+                layer = "initial"
                 p_book = bout.get("p_book")
                 book_text = None if p_book is None else str(_probability(p_book, "sportsbook"))
                 market = self.client.get_market(ticker)
@@ -251,14 +254,13 @@ class TradingEngine:
             raise ValueError("Expected the exact binary winner market")
         if market.get("mve_collection_ticker") or market.get("mve_selected_legs"):
             raise ValueError("Combo markets require joint probabilities and are unsupported")
-        if normalized_name(str(market.get("yes_sub_title", ""))) != normalized_name(
-            mapping["yes_fighter"]
-        ):
+        from octagon.trading.autoplan import fighter_in_rules, same_name
+
+        if not same_name(str(market.get("yes_sub_title", "")), mapping["yes_fighter"]):
             raise ValueError("Market YES label must exactly identify the selected fighter")
         if not market.get("rules_primary") or not market.get("event_ticker"):
             raise ValueError("Market settlement rules and event identity are required")
-        rules = " " + normalized_name(market["rules_primary"]) + " "
-        if any(" " + normalized_name(mapping[key]) + " " not in rules for key in ("f1", "f2")):
+        if any(not fighter_in_rules(mapping[key], market["rules_primary"]) for key in ("f1", "f2")):
             raise ValueError("Market rules must identify both exact fighters in this bout")
 
     def update_feed(self, message: dict):
@@ -443,33 +445,28 @@ class TradingEngine:
             raise ValueError(reason)
         elapsed, stats_1, stats_2, phase = fight_progress(
             bout, mapping["f1"], mapping["f2"], normalized_name)
+        self._live_stats = (stats_1, stats_2)
         scheduled = mapping.get("scheduled_rounds")
         if scheduled not in (3, 5):
             raise ValueError("Scheduled rounds unknown; in-fight trading needs 3 or 5")
         if elapsed >= scheduled:
             raise ValueError("Final round finished; awaiting the result")
         round_k = int(elapsed) if phase == "break" else int(bout["round"])
-        if phase != "break":
-            raise ValueError(
-                "Mid-round prices are outside the trained end-of-round snapshots; "
-                "waiting for the break"
-            )
-        seen = self.break_seen.get((mapping["bout_id"], round_k))
-        if seen is None or time.monotonic() - seen < self.policy.min_break_seconds:
-            raise ValueError("Break just started; waiting for round totals to settle")
-        if time.monotonic() - seen > self.policy.max_break_seconds:
-            raise ValueError("Too late in the break; the next round may already be live")
-        key = f'{mapping["bout_id"]}:r{round_k}'
-        prior = self.prefight.get(mapping["ticker"])
-        if prior and now - prior["at"] <= self.policy.prefight_max_age_seconds:
-            p_prior, source = decimal(prior["p_f1"]), "kalshi pre-fight price"
-            card_reason = self._card_reason(mapping, now, need_history=False)
+        if phase == "break":
+            seen = self.break_seen.get((mapping["bout_id"], round_k))
+            if seen is None or time.monotonic() - seen < self.policy.min_break_seconds:
+                raise ValueError("Break just started; waiting for round totals to settle")
+            if time.monotonic() - seen > self.policy.max_break_seconds:
+                raise ValueError("Too late in the break; the next round may already be live")
+            key = f'{mapping["bout_id"]}:r{round_k}'
+        elif phase == "live":
+            key = f'{mapping["bout_id"]}:l{round_k}'
         else:
-            skill = mapping.get("p_skill")
-            if skill is None:
-                raise ValueError("No skill prior for the in-play model")
-            p_prior, source = decimal(skill), "skill model"
-            card_reason = self._card_reason(mapping, now, need_history=True)
+            raise ValueError("Unknown fight phase")
+        if mapping.get("probability_f1") is None:
+            raise ValueError("No initial pick for the in-play model")
+        p_prior, source = decimal(mapping["probability_f1"]), "initial pick"
+        card_reason = self._card_reason(mapping, now, need_history=True)
         if card_reason:
             raise ValueError(card_reason)
         p_f1 = self.inplay.predict_progress(
@@ -574,9 +571,12 @@ class TradingEngine:
                 return
             orders = self.ledger.orders(self.session_id)
             if any(o["reserved"] for o in orders):
-                self.running.clear()
-                self.message = "Uncertain order outcome. Paused until reconciliation."
-                return
+                if self._confirm_open_orders() or not self.running.is_set():
+                    if self.running.is_set():
+                        self.message = ("Confirming the last order with Kalshi. "
+                                        "No new order until it clears.")
+                    return
+                orders = self.ledger.orders(self.session_id)
             decisions = []
             for mapping in self.config["mappings"]:
                 if not self.running.is_set():
@@ -612,16 +612,7 @@ class TradingEngine:
                         decision["p_f1"] = float(p_f1)
                         decision["event_id"] = self.config["espn_event_id"]
                     market, multiplier = self._market_context(mapping)
-                    if self.market_stream_required:
-                        # The book is cleared on disconnect or sequence gap and
-                        # pings detect a dead socket, so an in-sequence snapshot
-                        # is current even when a quiet market sends no deltas.
-                        # Price and depth come from the REST refresh below.
-                        with self.book_lock:
-                            if not self.market_connected or self.book.last_updated(mapping["ticker"]) is None:
-                                raise ValueError("Market websocket book is disconnected or out of sequence")
-                    # Independently refresh executable price/depth immediately
-                    # before sizing, including when a WS delta triggered us.
+                    # Price and depth come from the REST book, even if the socket is down.
                     began = time.monotonic()
                     book_payload = self.client.get_orderbook(mapping["ticker"])
                     quotes = rest_quotes(book_payload)
@@ -639,9 +630,20 @@ class TradingEngine:
                     if self.policy.venue_lag and not in_fight and book_f1 is None:
                         raise ValueError("Venue-lag rule is on and this bout has no sportsbook price")
                     room = self._budget_room(orders, mapping, in_fight, event)
-                    candidates, best, lag_reason = [], None, None
+                    locked = self._high_odds_side(orders, mapping["ticker"])
+                    candidates, best, lag_reason, stick_reason, held_reason = [], None, None, None, None
                     for side, probability in (("yes", p_yes), ("no", 1 - p_yes)):
                         price, depth = quotes[side]
+                        if locked and side != locked:
+                            unit_cost, edge, _kelly = edge_of(
+                                probability, price, multiplier, self.policy)
+                            if best is None or edge > best[1]:
+                                best = (side, edge, probability, unit_cost, Decimal(0))
+                            stick_reason = (
+                                f"Sticking with {self._side_name(mapping, locked)}; "
+                                "that fighter is already held at high odds"
+                            )
+                            continue
                         if self.policy.venue_lag and not in_fight:
                             book_side = book_f1 if side == "yes" else 1 - book_f1
                             if mapping["yes_fighter"] != mapping["f1"]:
@@ -665,9 +667,16 @@ class TradingEngine:
                             spread=spread, allowance=allowance,
                             fee_multiplier=multiplier, policy=self.policy,
                         )
+                        if candidate and in_fight and (reason := self._held_reason(mapping, side)):
+                            held_reason = reason
+                            continue
                         if candidate:
                             candidates.append(candidate)
                     if not candidates:
+                        if stick_reason and (best is None or best[0] != locked):
+                            raise ValueError(stick_reason)
+                        if held_reason:
+                            raise ValueError(held_reason)
                         if lag_reason and best is None:
                             raise ValueError(lag_reason)
                         raise ValueError(self._no_trade_reason(mapping, spread, *best))
@@ -714,8 +723,9 @@ class TradingEngine:
                                         reason=f"{self.mode.title()} order submitted; inspect its ledger status")
                     orders = self.ledger.orders(self.session_id)
                     if any(o["reserved"] for o in orders):
-                        self.running.clear()
-                        self.message = f"Uncertain {self.mode} order outcome. Reconcile before resuming."
+                        self.message = ("Confirming the last order with Kalshi. "
+                                        "No new order until it clears.")
+                        break
                 except (ValueError, RuntimeError) as exc:
                     # The client exposes sanitized RuntimeErrors, never raw bodies.
                     decision["reason"] = str(exc)
@@ -805,6 +815,46 @@ class TradingEngine:
                               Decimal(0)),
         }
 
+    def _held_reason(self, mapping: dict, side: str) -> str | None:
+        """Refuse a fighter who is being controlled and has no finish path."""
+        pair = getattr(self, "_live_stats", None)
+        if not pair:
+            return None
+        first, second = pair
+        mine_is_first = (side == "yes") == (mapping["yes_fighter"] == mapping["f1"])
+        mine, theirs = (first, second) if mine_is_first else (second, first)
+        if not held_without_threat(mine, theirs):
+            return None
+        return (f"Staying off {self._side_name(mapping, side)}; "
+                "being controlled with no finishing threat")
+
+    def _high_odds_side(self, orders: list[dict], ticker: str) -> str | None:
+        """The fighter already held under 50 cents, if either side is."""
+        held = {"yes": Decimal(0), "no": Decimal(0)}
+        cheapest = {"yes": None, "no": None}
+        for order in orders:
+            if order.get("ticker") != ticker or order.get("side") not in held:
+                continue
+            if order.get("status") not in {"filled", "demo_filled", "paper_filled"}:
+                continue
+            filled = decimal(order.get("filled_count") or 0)
+            price = decimal(order["price"])
+            if filled <= 0 or price >= HIGH_ODDS_PRICE:
+                continue
+            side = order["side"]
+            held[side] += filled
+            if cheapest[side] is None or price < cheapest[side]:
+                cheapest[side] = price
+        sides = [side for side, count in held.items() if count > 0]
+        if not sides:
+            return None
+        return max(sides, key=lambda side: (held[side], -cheapest[side]))
+
+    @staticmethod
+    def _side_name(mapping: dict, side: str) -> str:
+        yes, f1, f2 = mapping["yes_fighter"], mapping["f1"], mapping["f2"]
+        return yes if side == "yes" else (f2 if yes == f1 else f1)
+
     def _no_trade_reason(self, mapping: dict, spread: Decimal, side: str, edge: Decimal,
                          probability: Decimal, unit_cost: Decimal, allowance: Decimal) -> str:
         yes, f1, f2 = mapping["yes_fighter"], mapping["f1"], mapping["f2"]
@@ -837,18 +887,38 @@ class TradingEngine:
         except KalshiTransportError as exc:
             if not acknowledged and not exc.ambiguous and exc.status_code in {400, 401, 403, 404, 422, 429}:
                 self.ledger.finish(client_id, Decimal(0), Decimal(0), "rejected")
-                self.running.clear()
-                self.message = "Exchange rejected the order. No spend; resolve the error before resuming."
+                self.message = "Exchange rejected the order. No spend."
             else:
                 self.ledger.mark_unknown(client_id)
-                self.running.clear()
-                self.message = "Order outcome is uncertain. Reservation retained; reconcile."
-        except Exception:
-            # Even a rejected write stays reserved until verified. Never infer
-            # absence from one eventually consistent REST response.
-            self.ledger.mark_unknown(client_id)
+                self.message = ("Confirming the last order with Kalshi. "
+                                "No new order until it clears.")
+        except ValueError:
             self.running.clear()
-            self.message = "Order could not be confirmed. Reservation retained; reconcile."
+            self.message = "Order records disagree with Kalshi. Paused until that is reviewed."
+            raise
+        except Exception:
+            self.ledger.mark_unknown(client_id)
+            self.message = ("Confirming the last order with Kalshi. "
+                            "No new order until it clears.")
+
+    def _confirm_open_orders(self) -> bool:
+        """Read reserved orders again. True when one is still reserved."""
+        if not self.session_id:
+            return False
+        for order in self.ledger.orders(self.session_id):
+            if not order["reserved"] or self.mode == "paper":
+                continue
+            try:
+                self._reconcile_one(order)
+            except KalshiTransportError:
+                return True
+            except (ValueError, RuntimeError):
+                self.running.clear()
+                self.message = "Order records disagree with Kalshi. Paused until that is reviewed."
+                return True
+            except Exception:
+                return True
+        return any(o["reserved"] for o in self.ledger.orders(self.session_id))
 
     def _reconcile_one(self, local: dict) -> bool:
         if local["exchange_order_id"]:

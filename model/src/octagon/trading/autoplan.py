@@ -19,9 +19,41 @@ from octagon.trading.engine import normalized_name
 SERIES = "KXUFCFIGHT"
 
 
+def _skeleton(name: str) -> str:
+    return "".join(c for c in name if c not in "aeiouy ")
+
+
 def same_name(a: str, b: str) -> bool:
     x, y = normalized_name(a), normalized_name(b)
-    return bool(x) and (x == y or x.replace(" ", "") == y.replace(" ", ""))
+    if not x or not y:
+        return False
+    if x == y or x.replace(" ", "") == y.replace(" ", ""):
+        return True
+    xt, yt = x.split(), y.split()
+    if not xt or not yt or xt[-1] != yt[-1]:
+        return False
+    shorter, longer = (xt, yt) if len(xt) <= len(yt) else (yt, xt)
+    if len(shorter) >= 2 and set(shorter) <= set(longer):
+        return True
+    sx, sy = _skeleton(x), _skeleton(y)
+    return len(sx) >= 4 and sx == sy
+
+
+def fighter_in_rules(fighter: str, rules: str) -> bool:
+    folded = normalized_name(fighter)
+    text = normalized_name(rules)
+    if not folded or not text:
+        return False
+    if f" {folded} " in f" {text} ":
+        return True
+    tokens = folded.split()
+    words = text.split()
+    if len(tokens) < 2 or tokens[-1] not in words:
+        return False
+    if all(token in words for token in tokens):
+        return True
+    skeleton = _skeleton(folded)
+    return len(skeleton) >= 4 and skeleton in _skeleton(text)
 
 
 def same_pair(pair: tuple[str, str], other: tuple[str, str]) -> bool:
@@ -101,8 +133,11 @@ def build_plan(feed: dict | None, cards: list[dict], card_detail, markets: list[
     pairs = [p for p in _market_pairs(markets) if all(_occurs_near(m, card_day) for m in p)]
 
     for bout in card["bouts"]:
-        f1, f2, p_skill = bout["f1"], bout["f2"], bout.get("p_skill")
-        fight = {"f1": f1, "f2": f2, "p_f1": p_skill, "scheduled_rounds": bout.get("scheduled_rounds"),
+        f1, f2 = bout["f1"], bout["f2"]
+        p_pick = bout.get("p_f1_wins")
+        if not isinstance(p_pick, (int, float)):
+            p_pick = bout.get("p_skill")
+        fight = {"f1": f1, "f2": f2, "p_f1": p_pick, "scheduled_rounds": bout.get("scheduled_rounds"),
                  "bout_id": None, "status": None, "round": None, "ticker": None, "yes_fighter": None,
                  "yes_bid": None, "yes_ask": None, "title": None, "rules_primary": None,
                  "rules_secondary": None, "include": False, "note": "", "winner": None}
@@ -127,7 +162,7 @@ def build_plan(feed: dict | None, cards: list[dict], card_detail, markets: list[
             fight["note"] = "Finished" if fight["status"] == "final" else "Unavailable"
         elif len(matched) != 1:
             fight["note"] = "No open Kalshi market found" if not matched else "Several Kalshi markets match"
-        elif not isinstance(p_skill, (int, float)) or not 0 < p_skill < 1:
+        elif not isinstance(p_pick, (int, float)) or not 0 < p_pick < 1:
             fight["note"] = "No model prediction"
         elif fight["status"] == "in_progress" and not in_fight:
             fight["note"] = "Already started"
