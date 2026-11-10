@@ -14,6 +14,7 @@ from octagon.trading.kalshi import KalshiTransportError
 from octagon.trading.ledger import Ledger
 from octagon.trading.risk import RiskPolicy, bout_allowance, money, size_candidate
 from octagon.trading.service import Recorder, create_app, local_gateway, process_lease
+from octagon.trading.signal import moneyline_probability, pure_stack
 
 
 def iso(seconds=0):
@@ -337,7 +338,7 @@ def test_wrong_opponent_or_wrong_market_date_is_not_eligible(setup):
         return original(ticker) | {"rules_primary": "Alpha Fighter vs Someone Else"}
 
     exchange.get_market = other_opponent
-    with pytest.raises(ValueError, match="both exact fighters"):
+    with pytest.raises(ValueError, match="name both fighters"):
         engine.configure(request(), card())
 
     def old_event(ticker):
@@ -798,7 +799,7 @@ def test_debut_fighter_blocked_but_one_fight_allowed(tmp_path):
     assert engine.status()["orders"]
 
 
-def test_pre_fight_abstains_without_a_vig_free_line(tmp_path):
+def test_pre_fight_abstains_without_a_line(tmp_path):
     engine = TradingEngine(Ledger(tmp_path / "line.db"), Exchange())
     bare = card()
     bare["bouts"][0]["p_market"] = None
@@ -807,62 +808,128 @@ def test_pre_fight_abstains_without_a_vig_free_line(tmp_path):
     engine.start()
     engine.tick()
     assert not engine.status()["orders"]
-    assert "vig-free" in engine.status()["decisions"][0]["reason"]
+    assert "No sportsbook line" in engine.status()["decisions"][0]["reason"]
 
 
-def test_pre_fight_orders_the_model_pick_not_the_market(tmp_path):
+def with_odds(message, first, second):
+    message["data"][0]["fighter_a"]["odds"] = first
+    message["data"][0]["fighter_b"]["odds"] = second
+    return message
+
+
+def test_pre_fight_bets_the_line_nudged_by_skill_not_the_card_pick(tmp_path):
     engine = TradingEngine(Ledger(tmp_path / "stack.db"), Exchange())
     priced = card()
-    priced["bouts"][0]["p_skill"] = 0.8
-    priced["bouts"][0]["p_market"] = 0.6
-    priced["bouts"][0]["p_f1_wins"] = 0.42
+    priced["bouts"][0].update(p_skill=0.8, p_market=0.6, p_f1_wins=0.42)
     engine.configure(request(), priced)
-    stored = D(engine.config["mappings"][0]["probability_f1"])
-    assert stored == D("0.42")
-    assert engine.config["mappings"][0]["probability_layer"] == "initial"
     engine.update_feed(feed())
     engine.start()
     engine.tick()
     decision = engine.status()["decisions"][0]
-    assert decision["action"] == "paper"
-    assert decision["layer"] == "initial"
-    assert D(str(decision["p_f1"])) == stored
+    assert decision["action"] == "paper" and decision["line"] == "card line"
+    assert D(str(decision["p_f1"])) == pure_stack(D("0.8"), D("0.6"))
 
 
-def test_draw_rate_shrinks_a_favorite_and_helps_a_dog():
-    from octagon.trading.risk import edge_of
+def test_the_live_espn_moneyline_replaces_the_card_line(tmp_path):
+    engine = TradingEngine(Ledger(tmp_path / "live.db"), Exchange())
+    bare = card()
+    bare["bouts"][0].update(p_skill=0.8, p_market=None)
+    engine.configure(request(), bare)
+    engine.update_feed(with_odds(feed(), "-300", "+240"))
+    engine.start()
+    engine.tick()
+    decision = engine.status()["decisions"][0]
+    line = moneyline_probability("-300", "+240")
+    assert decision["action"] == "paper" and decision["line"] == "live sportsbook line"
+    assert D(str(decision["p_f1"])) == pure_stack(D("0.8"), line)
 
-    favorite = RiskPolicy(draw_settlement_rate=D("0.04"))
-    plain = RiskPolicy()
-    _, favored, _ = edge_of(D("0.70"), D("0.60"), D(1), favorite)
-    _, unadjusted, _ = edge_of(D("0.70"), D("0.60"), D(1), plain)
-    _, dog, _ = edge_of(D("0.30"), D("0.20"), D(1), favorite)
-    _, dog_plain, _ = edge_of(D("0.30"), D("0.20"), D(1), plain)
-    assert favored < unadjusted
-    assert dog > dog_plain
+
+def test_moneylines_become_a_vig_free_probability_or_nothing():
+    assert moneyline_probability("-205", "+170") == D("0.644729")
+    assert moneyline_probability("EVEN", "-120") < D("0.5")
+    assert moneyline_probability("+170", "-205") == 1 - moneyline_probability("-205", "+170")
+    for broken in ((None, "+170"), ("", "+170"), ("-205", "abc"), ("-50", "+170"),
+                   ("+900", "+900"), ("-2000", "-2000")):
+        assert moneyline_probability(*broken) is None
 
 
-def test_venue_lag_refuses_a_kalshi_ask_the_sportsbook_does_not_beat(tmp_path):
-    engine = TradingEngine(Ledger(tmp_path / "lag.db"), Exchange(),
-                           policy=RiskPolicy(venue_lag=True))
-    priced = card()
-    # Book, stack, and the 50¢ ask all sit together. Skill is not allowed to invent a lag.
-    priced["bouts"][0]["p_skill"] = 0.52
-    priced["bouts"][0]["p_market"] = 0.52
-    priced["bouts"][0]["p_book"] = 0.52
-    engine.configure(request(), priced)
+def cheap(exchange, yes_ask, yes_bid):
+    exchange.get_orderbook = lambda ticker: {"orderbook_fp": {
+        "yes_dollars": [[yes_bid, "100.00"]],
+        "no_dollars": [[f"{1 - float(yes_ask):.4f}", "100.00"]]}}
+
+
+def test_a_longshot_under_the_price_floor_is_never_bought(tmp_path):
+    exchange = Exchange()
+    engine = TradingEngine(Ledger(tmp_path / "floor.db"), exchange)
+    dog = card()
+    dog["bouts"][0].update(p_skill=0.3, p_market=0.3)
+    engine.configure(request(), dog)
+    cheap(exchange, "0.1500", "0.1400")
     engine.update_feed(feed())
     engine.start()
     engine.tick()
     assert not engine.status()["orders"]
-    assert "not lagging" in engine.status()["decisions"][0]["reason"]
-    slow = card()
-    slow["bouts"][0]["p_skill"] = 0.8
-    slow["bouts"][0]["p_market"] = 0.8
-    slow["bouts"][0]["p_book"] = 0.8
-    engine.stop()
-    engine.configure(request(), slow)
+    assert "Longshot" in engine.status()["decisions"][0]["reason"]
+    cheap(exchange, "0.2000", "0.1900")
+    engine.last_attempt.clear()
+    engine.tick()
+    assert engine.status()["orders"]
+
+
+def test_the_other_side_of_a_held_fight_is_never_bought(tmp_path):
+    exchange = Exchange()
+    engine = TradingEngine(Ledger(tmp_path / "sides.db"), exchange)
+    engine.configure(request(), card())
     engine.update_feed(feed())
     engine.start()
     engine.tick()
-    assert engine.status()["orders"]
+    assert [o["side"] for o in engine.status()["orders"]] == ["yes"]
+    # The price flips: now only the other fighter looks cheap.
+    cheap(exchange, "0.9700", "0.9600")
+    engine.last_attempt.clear()
+    engine.tick()
+    assert [o["side"] for o in engine.status()["orders"]] == ["yes"]
+    assert "Sticking with Alpha Fighter" in engine.status()["decisions"][0]["reason"]
+
+
+def test_results_turn_fills_into_a_profit_tally(tmp_path):
+    engine = TradingEngine(Ledger(tmp_path / "pnl.db"), Exchange())
+    engine.configure(request(), card())
+    engine.update_feed(feed())
+    engine.start()
+    engine.tick()
+    order = engine.status()["orders"][0]
+    open_tally = engine.status()["results"]
+    assert open_tally["profit_dollars"] == "0.00"
+    assert D(open_tally["open_cost_dollars"]) == D(order["cost_dollars"])
+    final = feed()
+    final["data"][0].update(status="final", winner="Alpha Fighter")
+    final["data"][0]["fighter_a"]["winner"] = True
+    engine.update_feed(final)
+    won = engine.status()["results"]
+    contracts = D(order["filled_count"])
+    assert D(won["returned_dollars"]) == contracts
+    assert D(won["profit_dollars"]) == (contracts - D(order["cost_dollars"])).quantize(D("0.01"))
+    assert won["markets"]["WIN-0"]["outcome"] == "won"
+    # The result survives a restart: it is in the ledger, not only in the feed.
+    reloaded = TradingEngine(engine.ledger, Exchange())
+    assert reloaded.status()["results"]["profit_dollars"] == won["profit_dollars"]
+
+
+def test_a_draw_pays_half_and_a_loss_pays_nothing():
+    from octagon.trading.pnl import bout_result, session_results
+
+    mappings = [{"ticker": "T", "bout_id": "9", "f1": "Alpha Fighter", "f2": "Bravo Fighter",
+                 "yes_fighter": "Alpha Fighter"}]
+    orders = [{"ticker": "T", "side": "no", "status": "filled", "filled_count": "4.00",
+               "cost_dollars": "1.20"}]
+    bout = {"bout_id": "9", "status": "final", "method": "Decision - Majority Draw"}
+    draw = session_results(orders, mappings, {"9": bout_result(bout, None)})
+    assert draw["returned_dollars"] == "2.00" and draw["markets"]["T"]["outcome"] == "split"
+    lost = session_results(orders, mappings, {"9": bout_result(bout | {"method": "KO/TKO"},
+                                                              "Alpha Fighter")})
+    assert lost["profit_dollars"] == "-1.20" and lost["markets"]["T"]["outcome"] == "lost"
+    # A final bout with no winner yet is not a split unless ESPN says draw or no-contest.
+    assert bout_result(bout | {"method": "KO/TKO"}, None) is None
+    assert bout_result(bout | {"status": "in_progress"}, "Alpha Fighter") is None

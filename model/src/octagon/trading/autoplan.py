@@ -2,10 +2,14 @@
 
 Event from the live ESPN feed, the frozen prediction card whose fighters match
 it, each card bout's ESPN bout, and its Kalshi winner market (the series event
-whose two YES labels are exactly the two fighters, on the card's date). Names
-must match exactly after accent/punctuation folding: anything ambiguous is
-left out and explained, never guessed. The service still validates every
-mapping again when the session is configured.
+whose two YES labels are the two fighters, near the card's date). Fights are
+matched as pairs by ``names.orient``, so a nickname on one side still matches.
+A fight that matches two bouts or two markets is left out and explained, never
+guessed. The service validates every mapping again when the session is
+configured.
+
+Each fight also carries the probability the bot would bet (``signal``), so the
+dashboard shows the same number the engine trades on.
 """
 
 from __future__ import annotations
@@ -14,51 +18,13 @@ import time
 from collections import defaultdict
 from datetime import date, datetime, timezone
 
-from octagon.trading.engine import normalized_name
+from octagon.trading.engine import MARKET_DAYS
+from octagon.trading.names import loose_name, orient
+from octagon.trading.pnl import card_winner, corner_names
+from octagon.trading.risk import decimal
+from octagon.trading.signal import moneyline_probability, order_probability
 
 SERIES = "KXUFCFIGHT"
-
-
-def _skeleton(name: str) -> str:
-    return "".join(c for c in name if c not in "aeiouy ")
-
-
-def same_name(a: str, b: str) -> bool:
-    x, y = normalized_name(a), normalized_name(b)
-    if not x or not y:
-        return False
-    if x == y or x.replace(" ", "") == y.replace(" ", ""):
-        return True
-    xt, yt = x.split(), y.split()
-    if not xt or not yt or xt[-1] != yt[-1]:
-        return False
-    shorter, longer = (xt, yt) if len(xt) <= len(yt) else (yt, xt)
-    if len(shorter) >= 2 and set(shorter) <= set(longer):
-        return True
-    sx, sy = _skeleton(x), _skeleton(y)
-    return len(sx) >= 4 and sx == sy
-
-
-def fighter_in_rules(fighter: str, rules: str) -> bool:
-    folded = normalized_name(fighter)
-    text = normalized_name(rules)
-    if not folded or not text:
-        return False
-    if f" {folded} " in f" {text} ":
-        return True
-    tokens = folded.split()
-    words = text.split()
-    if len(tokens) < 2 or tokens[-1] not in words:
-        return False
-    if all(token in words for token in tokens):
-        return True
-    skeleton = _skeleton(folded)
-    return len(skeleton) >= 4 and skeleton in _skeleton(text)
-
-
-def same_pair(pair: tuple[str, str], other: tuple[str, str]) -> bool:
-    return ((same_name(pair[0], other[0]) and same_name(pair[1], other[1]))
-            or (same_name(pair[0], other[1]) and same_name(pair[1], other[0])))
 
 
 class MarketCache:
@@ -69,8 +35,19 @@ class MarketCache:
         self._at, self._markets = 0.0, []
 
     def get(self) -> list[dict]:
+        """The open markets. A failed refresh keeps the last list it had.
+
+        One Kalshi hiccup must not make every market on the card disappear.
+        With nothing cached yet the error is raised, so the caller can say
+        Kalshi is unreachable.
+        """
         if time.monotonic() - self._at > self.ttl:
-            self._markets = self.client.list_open_markets(SERIES)
+            try:
+                self._markets = self.client.list_open_markets(SERIES)
+            except (RuntimeError, ValueError):
+                if not self._markets:
+                    raise
+            # Wait a full interval after a failure too, not one retry per poll.
             self._at = time.monotonic()
         return self._markets
 
@@ -88,28 +65,82 @@ def _occurs_near(market: dict, card_date: date) -> bool:
         when = datetime.fromisoformat(str(market.get("occurrence_datetime")).replace("Z", "+00:00"))
     except ValueError:
         return False
-    return abs((when.astimezone(timezone.utc).date() - card_date).days) <= 1
+    return abs((when.astimezone(timezone.utc).date() - card_date).days) <= MARKET_DAYS
+
+
+def _other_opponent(fighters: tuple[str, str], listed: list[tuple[str, str]]) -> str | None:
+    """"X vs Z" when a source lists one of these fighters against someone else."""
+    for pair in listed:
+        for name in fighters:
+            for index in (0, 1):
+                if loose_name(name, pair[index]) and not any(
+                        loose_name(other, pair[1 - index]) for other in fighters if other != name):
+                    return f"{pair[index]} vs {pair[1 - index]}"
+    return None
+
+
+# A card counts for the event ESPN is showing when it is dated from two days
+# back (a late-night card past midnight) to ten days ahead (next weekend's
+# card, so it can be checked during the week). Older cards with the same
+# fighters are rematches, not tonight.
+CARD_DAYS_BACK = 2
+CARD_DAYS_AHEAD = 10
 
 
 def choose_card(feed_bouts: list[dict], cards: list[dict], card_detail, today: date) -> dict | None:
-    """The recent card with the most bouts present in the live feed."""
-    pairs = [((b.get("fighter_a") or {}).get("name", ""), (b.get("fighter_b") or {}).get("name", ""))
-             for b in feed_bouts]
+    """The current card with the most bouts present in the live feed."""
+    pairs = [corner_names(b) for b in feed_bouts]
     best, best_hits = None, 0
     for summary in cards:
         try:
             card_day = date.fromisoformat(str(summary["date"])[:10])
         except ValueError:
             continue
-        if abs((card_day - today).days) > 2:
+        if not -CARD_DAYS_BACK <= (card_day - today).days <= CARD_DAYS_AHEAD:
             continue
         detail = card_detail(summary["slug"])
         if not detail:
             continue
-        hits = sum(any(same_pair((b["f1"], b["f2"]), p) for p in pairs) for b in detail["bouts"])
+        hits = sum(any(orient(b["f1"], b["f2"], *p) is not None for p in pairs)
+                   for b in detail["bouts"])
         if hits > best_hits:
             best, best_hits = detail, hits
     return best
+
+
+def _bet_probability(bout: dict, espn: dict | None,
+                     f1_is_a: bool | None) -> tuple[float | None, str | None]:
+    """(P(f1 wins) the bot would bet, where its line came from).
+
+    Without any line the skill number is shown so the card is still readable,
+    and the source is None: the bot will not bet that fight before it starts.
+    """
+    skill = bout.get("p_skill")
+    if not isinstance(skill, (int, float)) or not 0 < skill < 1:
+        return None, None
+    live = None
+    if espn and f1_is_a is not None:
+        odds = [(espn.get(key) or {}).get("odds") for key in ("fighter_a", "fighter_b")]
+        live = moneyline_probability(*(odds if f1_is_a else reversed(odds)))
+    card = bout.get("p_market")
+    card = decimal(card) if isinstance(card, (int, float)) and 0 < card < 1 else None
+    pick = order_probability(decimal(skill), live, card)
+    return (float(pick[0]), pick[1]) if pick else (float(skill), None)
+
+
+def _model_pick(bout: dict) -> dict | None:
+    """The model's own call for a fight: who wins, how, and in which round.
+
+    This is the written card's pick. It is shown beside the betting number,
+    never bet: the bot trades on ``_bet_probability``.
+    """
+    outcome = bout.get("top_outcome")
+    if not bout.get("pick") or not isinstance(outcome, dict):
+        return None
+    return {"winner": bout["pick"], "confidence": bout.get("confidence"),
+            "method": outcome.get("method"), "round": outcome.get("round"),
+            # Chance of exactly this winner, method and round together.
+            "exact_probability": outcome.get("probability")}
 
 
 def build_plan(feed: dict | None, cards: list[dict], card_detail, markets: list[dict],
@@ -132,37 +163,51 @@ def build_plan(feed: dict | None, cards: list[dict], card_detail, markets: list[
     card_day = date.fromisoformat(str(card["date"])[:10])
     pairs = [p for p in _market_pairs(markets) if all(_occurs_near(m, card_day) for m in p)]
 
+    feed_pairs = [corner_names(b) for b in feed_bouts]
+    market_pairs = [(p[0]["yes_sub_title"], p[1]["yes_sub_title"]) for p in pairs]
+
     for bout in card["bouts"]:
         f1, f2 = bout["f1"], bout["f2"]
-        p_pick = bout.get("p_f1_wins")
-        if not isinstance(p_pick, (int, float)):
-            p_pick = bout.get("p_skill")
-        fight = {"f1": f1, "f2": f2, "p_f1": p_pick, "scheduled_rounds": bout.get("scheduled_rounds"),
+        # (bout, is f1 ESPN's fighter_a) for every ESPN bout that is this fight.
+        espn = [(b, way) for b, names in zip(feed_bouts, feed_pairs, strict=True)
+                if (way := orient(f1, f2, *names)) is not None]
+        live, f1_is_a = espn[0] if len(espn) == 1 else (None, None)
+        p_bet, line = _bet_probability(bout, live, f1_is_a)
+        fight = {"f1": f1, "f2": f2, "p_f1": p_bet, "line": line, "pick": _model_pick(bout),
+                 "weight_class": bout.get("weight_class"), "result": None,
+                 "scheduled_rounds": bout.get("scheduled_rounds"),
                  "bout_id": None, "status": None, "round": None, "ticker": None, "yes_fighter": None,
                  "yes_bid": None, "yes_ask": None, "title": None, "rules_primary": None,
                  "rules_secondary": None, "include": False, "note": "", "winner": None}
-        espn = [b for b in feed_bouts if same_pair(
-            (f1, f2), ((b.get("fighter_a") or {}).get("name", ""), (b.get("fighter_b") or {}).get("name", "")))]
-        if len(espn) == 1:
-            winner = espn[0].get("winner")
-            fight.update(bout_id=str(espn[0].get("bout_id")), status=espn[0].get("status"),
-                         round=espn[0].get("round"),
-                         winner=next((n for n in (f1, f2) if winner and same_name(n, winner)), None))
-        matched = [p for p in pairs if same_pair((f1, f2), (p[0]["yes_sub_title"], p[1]["yes_sub_title"]))]
+        if live:
+            fight.update(bout_id=str(live.get("bout_id")), status=live.get("status"),
+                         round=live.get("round"), winner=card_winner(live, f1, f2, f1_is_a))
+            if live.get("status") == "final":
+                # How it actually ended, in ESPN's words, to set beside the pick.
+                fight["result"] = {"method": live.get("method"), "round": live.get("round")}
+        # (the two markets, is f1 the first market's YES fighter)
+        matched = [(p, way) for p, names in zip(pairs, market_pairs, strict=True)
+                   if (way := orient(f1, f2, *names)) is not None]
         if len(matched) == 1:
-            market = next((m for m in matched[0] if same_name(m["yes_sub_title"], f1)), matched[0][0])
-            fight.update(ticker=market["ticker"],
-                         yes_fighter=f1 if same_name(market["yes_sub_title"], f1) else f2,
+            (first, second), f1_is_first = matched[0]
+            market = first if f1_is_first else second  # the market whose YES is f1
+            fight.update(ticker=market["ticker"], yes_fighter=f1,
                          yes_bid=market.get("yes_bid_dollars"), yes_ask=market.get("yes_ask_dollars"),
                          title=market.get("title"), rules_primary=market.get("rules_primary"),
                          rules_secondary=market.get("rules_secondary"))
         if len(espn) != 1:
-            fight["note"] = "Not found in the ESPN feed"
+            changed = _other_opponent((f1, f2), feed_pairs)
+            fight["note"] = ("Two ESPN bouts match this fight" if espn
+                             else f"ESPN now lists {changed}; these predictions are for a different fight"
+                             if changed else "Not on ESPN's card")
         elif fight["status"] in {"final", "unavailable", "unknown"}:
             fight["note"] = "Finished" if fight["status"] == "final" else "Unavailable"
         elif len(matched) != 1:
-            fight["note"] = "No open Kalshi market found" if not matched else "Several Kalshi markets match"
-        elif not isinstance(p_pick, (int, float)) or not 0 < p_pick < 1:
+            changed = _other_opponent((f1, f2), market_pairs)
+            fight["note"] = ("Two Kalshi markets match this fight" if matched
+                             else f"Kalshi lists {changed}, a different fight" if changed
+                             else "Kalshi has not listed this fight yet")
+        elif p_bet is None:
             fight["note"] = "No model prediction"
         elif fight["status"] == "in_progress" and not in_fight:
             fight["note"] = "Already started"

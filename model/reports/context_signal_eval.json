@@ -1,0 +1,895 @@
+{
+  "summary": {
+    "all": {
+      "n": 77,
+      "base_log_loss": 0.5981269709466551,
+      "nudged_log_loss": 0.5949245555643176,
+      "base_correct": 54,
+      "nudged_correct": 54
+    },
+    "moved": {
+      "n": 7,
+      "base_log_loss": 0.6585795990430393,
+      "nudged_log_loss": 0.6233530298373261,
+      "base_correct": 5,
+      "nudged_correct": 5
+    },
+    "by_signal": {
+      "YouTube lean": {
+        "n": 3,
+        "base_log_loss": 0.4971869475960924,
+        "nudged_log_loss": 0.4910370622815213,
+        "base_correct": 3,
+        "nudged_correct": 3
+      },
+      "Headline sentiment": null,
+      "Short notice or late replacement": {
+        "n": 5,
+        "base_log_loss": 0.7529309724063475,
+        "nudged_log_loss": 0.7142541574805826,
+        "base_correct": 3,
+        "nudged_correct": 3
+      },
+      "Debutant's pro record": null
+    },
+    "youtube": {
+      "leaned": 11,
+      "right": 5,
+      "disagreed": 7,
+      "right_when_disagreed": 1
+    },
+    "verdict": "Too early to say. The context has moved 7 finished fights; this needs 40 before it can tell a real effect from luck."
+  },
+  "cards": [
+    {
+      "card": "dwcs_2026_week_3",
+      "date": "2026-08-25",
+      "fetched_at": "2026-08-25",
+      "fights": 0,
+      "status": "no results in the database yet"
+    },
+    {
+      "card": "noche_ufc_silva_vs_delgado_2026",
+      "date": "2026-09-12",
+      "fetched_at": null,
+      "fights": 0,
+      "status": "saved context has no fetch date; left out"
+    },
+    {
+      "card": "ufc_330_makhachev_vs_machado_garry",
+      "date": "2026-08-15",
+      "fetched_at": "2026-08-15",
+      "fights": 12,
+      "status": "scored"
+    },
+    {
+      "card": "ufc_fight_night_cortes_acosta_vs_walker",
+      "date": "2026-11-07",
+      "fetched_at": "2026-11-07",
+      "fights": 0,
+      "status": "no results in the database yet"
+    },
+    {
+      "card": "ufc_fight_night_gamrot_vs_salkilld",
+      "date": "2026-08-08",
+      "fetched_at": "2026-08-07",
+      "fights": 12,
+      "status": "scored"
+    },
+    {
+      "card": "ufc_fight_night_hernandez_vs_rodrigues",
+      "date": "2026-08-22",
+      "fetched_at": "2026-08-21",
+      "fights": 13,
+      "status": "scored"
+    },
+    {
+      "card": "ufc_fight_night_hooker_vs_parnasse",
+      "date": "2026-09-05",
+      "fetched_at": "2026-09-04",
+      "fights": 14,
+      "status": "scored"
+    },
+    {
+      "card": "ufc_fight_night_medic_vs_rodriguez",
+      "date": "2026-08-01",
+      "fetched_at": "2026-07-31",
+      "fights": 14,
+      "status": "scored"
+    },
+    {
+      "card": "ufc_fight_night_nurmagomedov_vs_song",
+      "date": "2026-08-29",
+      "fetched_at": "2026-08-28",
+      "fights": 12,
+      "status": "scored"
+    }
+  ],
+  "fights": [
+    {
+      "bout": "Islam Makhachev vs Ian Machado Garry",
+      "label": 1,
+      "base": 0.7588554223371984,
+      "nudged": 0.7588554223371984,
+      "signals": [],
+      "youtube_lean": -0.561,
+      "youtube_n_signals": 10,
+      "card": "ufc_330_makhachev_vs_machado_garry"
+    },
+    {
+      "bout": "Mackenzie Dern vs Gillian Robertson",
+      "label": 1,
+      "base": 0.6439731336197005,
+      "nudged": 0.6439731336197005,
+      "signals": [],
+      "youtube_lean": 0.333,
+      "youtube_n_signals": 3,
+      "card": "ufc_330_makhachev_vs_machado_garry"
+    },
+    {
+      "bout": "Jalin Turner vs Kaue Fernandes",
+      "label": 1,
+      "base": 0.5810275857874682,
+      "nudged": 0.5810275857874682,
+      "signals": [],
+      "youtube_lean": 1.0,
+      "youtube_n_signals": 2,
+      "card": "ufc_330_makhachev_vs_machado_garry"
+    },
+    {
+      "bout": "Mansur Abdul-Malik vs Dustin Stoltzfus",
+      "label": 0,
+      "base": 0.8618455053240445,
+      "nudged": 0.8618455053240445,
+      "signals": [],
+      "youtube_lean": 0.0,
+      "youtube_n_signals": 0,
+      "card": "ufc_330_makhachev_vs_machado_garry"
+    },
+    {
+      "bout": "Edson Barboza vs Esteban Ribovics",
+      "label": 0,
+      "base": 0.13309591927068934,
+      "nudged": 0.13309591927068934,
+      "signals": [],
+      "youtube_lean": -1.0,
+      "youtube_n_signals": 1,
+      "card": "ufc_330_makhachev_vs_machado_garry"
+    },
+    {
+      "bout": "Chidi Njokuani vs Joel Alvarez",
+      "label": 1,
+      "base": 0.6800033337010215,
+      "nudged": 0.617002166905664,
+      "signals": [
+        "Short notice or late replacement"
+      ],
+      "youtube_lean": -1.0,
+      "youtube_n_signals": 1,
+      "card": "ufc_330_makhachev_vs_machado_garry"
+    },
+    {
+      "bout": "Charles Johnson vs Eduardo Chapolin",
+      "label": 1,
+      "base": 0.5240550664598217,
+      "nudged": 0.506155793198884,
+      "signals": [
+        "Short notice or late replacement",
+        "YouTube lean"
+      ],
+      "youtube_lean": -0.158,
+      "youtube_n_signals": 8,
+      "card": "ufc_330_makhachev_vs_machado_garry"
+    },
+    {
+      "bout": "Donte Johnson vs Eric McConico",
+      "label": 1,
+      "base": 0.7562473118633247,
+      "nudged": 0.7562473118633247,
+      "signals": [],
+      "youtube_lean": 0.6,
+      "youtube_n_signals": 5,
+      "card": "ufc_330_makhachev_vs_machado_garry"
+    },
+    {
+      "bout": "Vicente Luque vs Tresean Gore",
+      "label": 0,
+      "base": 0.49038872659801386,
+      "nudged": 0.49038872659801386,
+      "signals": [],
+      "youtube_lean": 1.0,
+      "youtube_n_signals": 1,
+      "card": "ufc_330_makhachev_vs_machado_garry"
+    },
+    {
+      "bout": "Rafael Tobias vs Lucas Fernando",
+      "label": 0,
+      "base": 0.2911099656627483,
+      "nudged": 0.2911099656627483,
+      "signals": [],
+      "youtube_lean": 1.0,
+      "youtube_n_signals": 1,
+      "card": "ufc_330_makhachev_vs_machado_garry"
+    },
+    {
+      "bout": "Neil Magny vs Ramiz Brahimaj",
+      "label": 1,
+      "base": 0.46805172550615004,
+      "nudged": 0.46805172550615004,
+      "signals": [],
+      "youtube_lean": 1.0,
+      "youtube_n_signals": 3,
+      "card": "ufc_330_makhachev_vs_machado_garry"
+    },
+    {
+      "bout": "Jeremiah Wells vs Myktybek Orolbai",
+      "label": 1,
+      "base": 0.10403424617587008,
+      "nudged": 0.10403424617587008,
+      "signals": [],
+      "youtube_lean": 1.0,
+      "youtube_n_signals": 1,
+      "card": "ufc_330_makhachev_vs_machado_garry"
+    },
+    {
+      "bout": "Mateusz Gamrot vs Quillan Salkilld",
+      "label": 0,
+      "base": 0.4086841735306673,
+      "nudged": 0.4086841735306673,
+      "signals": [],
+      "youtube_lean": 0.833,
+      "youtube_n_signals": 8,
+      "card": "ufc_fight_night_gamrot_vs_salkilld"
+    },
+    {
+      "bout": "Billy Quarantillo vs Diego Ferreira",
+      "label": 0,
+      "base": 0.31472354433596084,
+      "nudged": 0.31472354433596084,
+      "signals": [],
+      "youtube_lean": 1.0,
+      "youtube_n_signals": 1,
+      "card": "ufc_fight_night_gamrot_vs_salkilld"
+    },
+    {
+      "bout": "Darren Elkins vs Yadier del Valle",
+      "label": 0,
+      "base": 0.21736304229281028,
+      "nudged": 0.21736304229281028,
+      "signals": [],
+      "youtube_lean": -0.5,
+      "youtube_n_signals": 4,
+      "card": "ufc_fight_night_gamrot_vs_salkilld"
+    },
+    {
+      "bout": "Amanda Lemos vs Alexia Thainara",
+      "label": 0,
+      "base": 0.24471879985323747,
+      "nudged": 0.24471879985323747,
+      "signals": [],
+      "youtube_lean": 0.0,
+      "youtube_n_signals": 2,
+      "card": "ufc_fight_night_gamrot_vs_salkilld"
+    },
+    {
+      "bout": "Ty Miller vs Billy Ray Goff",
+      "label": 1,
+      "base": 0.8012756934194059,
+      "nudged": 0.8012756934194059,
+      "signals": [],
+      "youtube_lean": 1.0,
+      "youtube_n_signals": 2,
+      "card": "ufc_fight_night_gamrot_vs_salkilld"
+    },
+    {
+      "bout": "Steven Asplund vs Guilherme Pat",
+      "label": 1,
+      "base": 0.5161918564891993,
+      "nudged": 0.5761918564891992,
+      "signals": [
+        "YouTube lean"
+      ],
+      "youtube_lean": 1.0,
+      "youtube_n_signals": 6,
+      "card": "ufc_fight_night_gamrot_vs_salkilld"
+    },
+    {
+      "bout": "Diyar Nurgozhay vs Bruno Lopes",
+      "label": 1,
+      "base": 0.4220507953146742,
+      "nudged": 0.4220507953146742,
+      "signals": [],
+      "youtube_lean": 1.0,
+      "youtube_n_signals": 1,
+      "card": "ufc_fight_night_gamrot_vs_salkilld"
+    },
+    {
+      "bout": "Jos\u00e9 Luiz Montanha vs Louie Sutherland",
+      "label": 1,
+      "base": 0.3717734295082861,
+      "nudged": 0.3717734295082861,
+      "signals": [],
+      "youtube_lean": 0.111,
+      "youtube_n_signals": 2,
+      "card": "ufc_fight_night_gamrot_vs_salkilld"
+    },
+    {
+      "bout": "Manoel Sousa vs Richie Miranda",
+      "label": 1,
+      "base": 0.8204568518478862,
+      "nudged": 0.8204568518478862,
+      "signals": [],
+      "youtube_lean": 1.0,
+      "youtube_n_signals": 1,
+      "card": "ufc_fight_night_gamrot_vs_salkilld"
+    },
+    {
+      "bout": "Miles Johns vs Gianni Vazquez",
+      "label": 1,
+      "base": 0.611196664685554,
+      "nudged": 0.611196664685554,
+      "signals": [],
+      "youtube_lean": 1.0,
+      "youtube_n_signals": 3,
+      "card": "ufc_fight_night_gamrot_vs_salkilld"
+    },
+    {
+      "bout": "Juliana Miller vs Ravena Oliveira",
+      "label": 1,
+      "base": 0.6331465785345153,
+      "nudged": 0.6331465785345153,
+      "signals": [],
+      "youtube_lean": 1.0,
+      "youtube_n_signals": 2,
+      "card": "ufc_fight_night_gamrot_vs_salkilld"
+    },
+    {
+      "bout": "Giovanna Canuto vs Carol Foro",
+      "label": 0,
+      "base": 0.32401661030207185,
+      "nudged": 0.32401661030207185,
+      "signals": [],
+      "youtube_lean": -0.5,
+      "youtube_n_signals": 4,
+      "card": "ufc_fight_night_gamrot_vs_salkilld"
+    },
+    {
+      "bout": "Anthony Hernandez vs Gregory Rodrigues",
+      "label": 0,
+      "base": 0.7067838080826668,
+      "nudged": 0.7067838080826668,
+      "signals": [],
+      "youtube_lean": 1.0,
+      "youtube_n_signals": 1,
+      "card": "ufc_fight_night_hernandez_vs_rodrigues"
+    },
+    {
+      "bout": "Serghei Spivac vs Vitor Petrino",
+      "label": 0,
+      "base": 0.355542788244846,
+      "nudged": 0.355542788244846,
+      "signals": [],
+      "youtube_lean": 0.429,
+      "youtube_n_signals": 7,
+      "card": "ufc_fight_night_hernandez_vs_rodrigues"
+    },
+    {
+      "bout": "Reinier de Ridder vs Roman Dolidze",
+      "label": 1,
+      "base": 0.8082717944638612,
+      "nudged": 0.8082717944638612,
+      "signals": [],
+      "youtube_lean": 0.0,
+      "youtube_n_signals": 0,
+      "card": "ufc_fight_night_hernandez_vs_rodrigues"
+    },
+    {
+      "bout": "MarQuel Mederos vs Mason Jones",
+      "label": 1,
+      "base": 0.23875042599187102,
+      "nudged": 0.23875042599187102,
+      "signals": [],
+      "youtube_lean": 0.0,
+      "youtube_n_signals": 0,
+      "card": "ufc_fight_night_hernandez_vs_rodrigues"
+    },
+    {
+      "bout": "Carli Judice vs Jeisla Chaves",
+      "label": 1,
+      "base": 0.8405519338083303,
+      "nudged": 0.8405519338083303,
+      "signals": [],
+      "youtube_lean": 1.0,
+      "youtube_n_signals": 1,
+      "card": "ufc_fight_night_hernandez_vs_rodrigues"
+    },
+    {
+      "bout": "Anthony Wint vs Terrance Chatman",
+      "label": 1,
+      "base": 0.8900172298881505,
+      "nudged": 0.8900172298881505,
+      "signals": [],
+      "youtube_lean": 1.0,
+      "youtube_n_signals": 2,
+      "card": "ufc_fight_night_hernandez_vs_rodrigues"
+    },
+    {
+      "bout": "Jamall Emmers vs Lerryan Douglas",
+      "label": 1,
+      "base": 0.22015283487725354,
+      "nudged": 0.22015283487725354,
+      "signals": [],
+      "youtube_lean": 0.0,
+      "youtube_n_signals": 0,
+      "card": "ufc_fight_night_hernandez_vs_rodrigues"
+    },
+    {
+      "bout": "Shamil Gaziev vs Kennedy Nzechukwu",
+      "label": 1,
+      "base": 0.5382867874841798,
+      "nudged": 0.5382867874841798,
+      "signals": [],
+      "youtube_lean": 0.0,
+      "youtube_n_signals": 0,
+      "card": "ufc_fight_night_hernandez_vs_rodrigues"
+    },
+    {
+      "bout": "Nasrat Haqparast vs Chris Padilla",
+      "label": 0,
+      "base": 0.4789931609938751,
+      "nudged": 0.4789931609938751,
+      "signals": [],
+      "youtube_lean": -1.0,
+      "youtube_n_signals": 1,
+      "card": "ufc_fight_night_hernandez_vs_rodrigues"
+    },
+    {
+      "bout": "Marcio Barbosa vs Ryan Kuse",
+      "label": 1,
+      "base": 0.8722776012851928,
+      "nudged": 0.8722776012851928,
+      "signals": [],
+      "youtube_lean": 1.0,
+      "youtube_n_signals": 2,
+      "card": "ufc_fight_night_hernandez_vs_rodrigues"
+    },
+    {
+      "bout": "Gauge Young vs Stan Dorsainvil",
+      "label": 0,
+      "base": 0.6533862582773926,
+      "nudged": 0.5997010678803052,
+      "signals": [
+        "Short notice or late replacement"
+      ],
+      "youtube_lean": -0.111,
+      "youtube_n_signals": 3,
+      "card": "ufc_fight_night_hernandez_vs_rodrigues"
+    },
+    {
+      "bout": "Jackson McVey vs Wes Schultz",
+      "label": 1,
+      "base": 0.6337475025125614,
+      "nudged": 0.6337475025125614,
+      "signals": [],
+      "youtube_lean": 0.0,
+      "youtube_n_signals": 0,
+      "card": "ufc_fight_night_hernandez_vs_rodrigues"
+    },
+    {
+      "bout": "Shanelle Dyer vs Elise Reed",
+      "label": 1,
+      "base": 0.898715601170351,
+      "nudged": 0.898715601170351,
+      "signals": [],
+      "youtube_lean": 0.0,
+      "youtube_n_signals": 0,
+      "card": "ufc_fight_night_hernandez_vs_rodrigues"
+    },
+    {
+      "bout": "Salahdine Parnasse vs Dan Hooker",
+      "label": 1,
+      "base": 0.8318313495596864,
+      "nudged": 0.7859313495596865,
+      "signals": [
+        "YouTube lean"
+      ],
+      "youtube_lean": -0.765,
+      "youtube_n_signals": 7,
+      "card": "ufc_fight_night_hooker_vs_parnasse"
+    },
+    {
+      "bout": "Fares Ziam vs Axel Sola",
+      "label": 0,
+      "base": 0.5893827400762529,
+      "nudged": 0.5893827400762529,
+      "signals": [],
+      "youtube_lean": 0.0,
+      "youtube_n_signals": 0,
+      "card": "ufc_fight_night_hooker_vs_parnasse"
+    },
+    {
+      "bout": "Michael Page vs Nursulton Ruziboev",
+      "label": 1,
+      "base": 0.6453199199106656,
+      "nudged": 0.6453199199106656,
+      "signals": [],
+      "youtube_lean": 0.0,
+      "youtube_n_signals": 0,
+      "card": "ufc_fight_night_hooker_vs_parnasse"
+    },
+    {
+      "bout": "Punahele Soriano vs Daniil Donchenko",
+      "label": 0,
+      "base": 0.2864064960027351,
+      "nudged": 0.2864064960027351,
+      "signals": [],
+      "youtube_lean": -1.0,
+      "youtube_n_signals": 3,
+      "card": "ufc_fight_night_hooker_vs_parnasse"
+    },
+    {
+      "bout": "Kurtis Campbell vs Trevor Peek",
+      "label": 1,
+      "base": 0.8116069233245717,
+      "nudged": 0.8116069233245717,
+      "signals": [],
+      "youtube_lean": -1.0,
+      "youtube_n_signals": 2,
+      "card": "ufc_fight_night_hooker_vs_parnasse"
+    },
+    {
+      "bout": "Losene Keita vs Muhammad Naimov",
+      "label": 1,
+      "base": 0.7892640994579467,
+      "nudged": 0.7892640994579467,
+      "signals": [],
+      "youtube_lean": 1.0,
+      "youtube_n_signals": 1,
+      "card": "ufc_fight_night_hooker_vs_parnasse"
+    },
+    {
+      "bout": "Morgan Charriere vs Felipe Lima",
+      "label": 0,
+      "base": 0.307612475216066,
+      "nudged": 0.307612475216066,
+      "signals": [],
+      "youtube_lean": 0.0,
+      "youtube_n_signals": 0,
+      "card": "ufc_fight_night_hooker_vs_parnasse"
+    },
+    {
+      "bout": "Mario Pinto vs Ryan Spann",
+      "label": 1,
+      "base": 0.8033200460369507,
+      "nudged": 0.8033200460369507,
+      "signals": [],
+      "youtube_lean": 0.0,
+      "youtube_n_signals": 0,
+      "card": "ufc_fight_night_hooker_vs_parnasse"
+    },
+    {
+      "bout": "Oumar Sy vs Modestas Bukauskas",
+      "label": 0,
+      "base": 0.7212398002114544,
+      "nudged": 0.7212398002114544,
+      "signals": [],
+      "youtube_lean": 1.0,
+      "youtube_n_signals": 1,
+      "card": "ufc_fight_night_hooker_vs_parnasse"
+    },
+    {
+      "bout": "Nathaniel Wood vs Pavel Andrusca",
+      "label": 0,
+      "base": 0.7552386954295968,
+      "nudged": 0.6659051520292378,
+      "signals": [
+        "Short notice or late replacement"
+      ],
+      "youtube_lean": 0.0,
+      "youtube_n_signals": 0,
+      "card": "ufc_fight_night_hooker_vs_parnasse"
+    },
+    {
+      "bout": "Fabia Sintes vs Michael Aljarouj",
+      "label": 1,
+      "base": 0.4726903702568998,
+      "nudged": 0.4726903702568998,
+      "signals": [],
+      "youtube_lean": 0.0,
+      "youtube_n_signals": 0,
+      "card": "ufc_fight_night_hooker_vs_parnasse"
+    },
+    {
+      "bout": "Nora Cornolle vs Klaudia Sygula",
+      "label": 1,
+      "base": 0.4836114990638338,
+      "nudged": 0.4836114990638338,
+      "signals": [],
+      "youtube_lean": 0.0,
+      "youtube_n_signals": 0,
+      "card": "ufc_fight_night_hooker_vs_parnasse"
+    },
+    {
+      "bout": "Luis Felipe Dias vs Matthieu Duclos",
+      "label": 0,
+      "base": 0.5127211830362766,
+      "nudged": 0.5127211830362766,
+      "signals": [],
+      "youtube_lean": 0.0,
+      "youtube_n_signals": 0,
+      "card": "ufc_fight_night_hooker_vs_parnasse"
+    },
+    {
+      "bout": "Delphine Benouaich vs Sofia Montenegro",
+      "label": 1,
+      "base": 0.5417606021094457,
+      "nudged": 0.5417606021094457,
+      "signals": [],
+      "youtube_lean": 0.0,
+      "youtube_n_signals": 0,
+      "card": "ufc_fight_night_hooker_vs_parnasse"
+    },
+    {
+      "bout": "Uros Medic vs Daniel Rodriguez",
+      "label": 1,
+      "base": 0.7840796760904636,
+      "nudged": 0.7840796760904636,
+      "signals": [],
+      "youtube_lean": null,
+      "youtube_n_signals": 0,
+      "card": "ufc_fight_night_medic_vs_rodriguez"
+    },
+    {
+      "bout": "Jan Blachowicz vs Navajo Stirling",
+      "label": 0,
+      "base": 0.2334249757841518,
+      "nudged": 0.32672623425969866,
+      "signals": [
+        "Short notice or late replacement"
+      ],
+      "youtube_lean": null,
+      "youtube_n_signals": 0,
+      "card": "ufc_fight_night_medic_vs_rodriguez"
+    },
+    {
+      "bout": "Aleksandar Rakic vs Marcin Tybura",
+      "label": 1,
+      "base": 0.7764967077948289,
+      "nudged": 0.7764967077948289,
+      "signals": [],
+      "youtube_lean": null,
+      "youtube_n_signals": 0,
+      "card": "ufc_fight_night_medic_vs_rodriguez"
+    },
+    {
+      "bout": "Dusko Todorovic vs Robert Valentin",
+      "label": 0,
+      "base": 0.39050051569460204,
+      "nudged": 0.39050051569460204,
+      "signals": [],
+      "youtube_lean": null,
+      "youtube_n_signals": 0,
+      "card": "ufc_fight_night_medic_vs_rodriguez"
+    },
+    {
+      "bout": "Vlasto \u010cepo vs Gilbert Urbina",
+      "label": 0,
+      "base": 0.746735383762996,
+      "nudged": 0.746735383762996,
+      "signals": [],
+      "youtube_lean": null,
+      "youtube_n_signals": 0,
+      "card": "ufc_fight_night_medic_vs_rodriguez"
+    },
+    {
+      "bout": "Noah Gugnon vs Milo\u0161 Jani\u010di\u0107",
+      "label": 1,
+      "base": 0.47954107518659383,
+      "nudged": 0.47954107518659383,
+      "signals": [],
+      "youtube_lean": null,
+      "youtube_n_signals": 0,
+      "card": "ufc_fight_night_medic_vs_rodriguez"
+    },
+    {
+      "bout": "Ludovit Klein vs Tofiq Musayev",
+      "label": 0,
+      "base": 0.7110420516377038,
+      "nudged": 0.7110420516377038,
+      "signals": [],
+      "youtube_lean": null,
+      "youtube_n_signals": 0,
+      "card": "ufc_fight_night_medic_vs_rodriguez"
+    },
+    {
+      "bout": "Oban Elliott vs Michael Oliveira",
+      "label": 0,
+      "base": 0.26608734939708667,
+      "nudged": 0.26608734939708667,
+      "signals": [],
+      "youtube_lean": null,
+      "youtube_n_signals": 0,
+      "card": "ufc_fight_night_medic_vs_rodriguez"
+    },
+    {
+      "bout": "Borislav Nikoli\u0107 vs Mark Vologdin",
+      "label": 1,
+      "base": 0.5152287410294133,
+      "nudged": 0.5152287410294133,
+      "signals": [],
+      "youtube_lean": null,
+      "youtube_n_signals": 0,
+      "card": "ufc_fight_night_medic_vs_rodriguez"
+    },
+    {
+      "bout": "Dennis Buzukja vs Bogdan Grad",
+      "label": 0,
+      "base": 0.2979035475928013,
+      "nudged": 0.2979035475928013,
+      "signals": [],
+      "youtube_lean": null,
+      "youtube_n_signals": 0,
+      "card": "ufc_fight_night_medic_vs_rodriguez"
+    },
+    {
+      "bout": "Mateusz Rebecki vs Kyle Prepolec",
+      "label": 1,
+      "base": 0.8327778895261779,
+      "nudged": 0.8327778895261779,
+      "signals": [],
+      "youtube_lean": null,
+      "youtube_n_signals": 0,
+      "card": "ufc_fight_night_medic_vs_rodriguez"
+    },
+    {
+      "bout": "Nina Nikolija Milo\u0161evi\u0107 vs Hailey Cowan",
+      "label": 1,
+      "base": 0.7613771311452426,
+      "nudged": 0.7613771311452426,
+      "signals": [],
+      "youtube_lean": null,
+      "youtube_n_signals": 0,
+      "card": "ufc_fight_night_medic_vs_rodriguez"
+    },
+    {
+      "bout": "Jovan Leka vs Alexander Poppeck",
+      "label": 1,
+      "base": 0.6439412254884658,
+      "nudged": 0.6439412254884658,
+      "signals": [],
+      "youtube_lean": null,
+      "youtube_n_signals": 0,
+      "card": "ufc_fight_night_medic_vs_rodriguez"
+    },
+    {
+      "bout": "Stephanie Luciano vs Marina Spasi\u0107",
+      "label": 1,
+      "base": 0.7345941288909138,
+      "nudged": 0.7345941288909138,
+      "signals": [],
+      "youtube_lean": null,
+      "youtube_n_signals": 0,
+      "card": "ufc_fight_night_medic_vs_rodriguez"
+    },
+    {
+      "bout": "Umar Nurmagomedov vs Song Yadong",
+      "label": 0,
+      "base": 0.8755121014577764,
+      "nudged": 0.8755121014577764,
+      "signals": [],
+      "youtube_lean": -0.222,
+      "youtube_n_signals": 7,
+      "card": "ufc_fight_night_nurmagomedov_vs_song"
+    },
+    {
+      "bout": "Yan Xiaonan vs Denise Gomes",
+      "label": 0,
+      "base": 0.5383369624344884,
+      "nudged": 0.5383369624344884,
+      "signals": [],
+      "youtube_lean": 0.0,
+      "youtube_n_signals": 0,
+      "card": "ufc_fight_night_nurmagomedov_vs_song"
+    },
+    {
+      "bout": "Aoriqileng vs Kai Asakura",
+      "label": 0,
+      "base": 0.17997928960607532,
+      "nudged": 0.17997928960607532,
+      "signals": [],
+      "youtube_lean": 0.0,
+      "youtube_n_signals": 2,
+      "card": "ufc_fight_night_nurmagomedov_vs_song"
+    },
+    {
+      "bout": "Sumudaerji vs Alex Perez",
+      "label": 1,
+      "base": 0.6980631016978327,
+      "nudged": 0.6980631016978327,
+      "signals": [],
+      "youtube_lean": -1.0,
+      "youtube_n_signals": 5,
+      "card": "ufc_fight_night_nurmagomedov_vs_song"
+    },
+    {
+      "bout": "Bilal Hasan vs Nilson Rojas",
+      "label": 1,
+      "base": 0.8543944457990118,
+      "nudged": 0.8543944457990118,
+      "signals": [],
+      "youtube_lean": 1.0,
+      "youtube_n_signals": 1,
+      "card": "ufc_fight_night_nurmagomedov_vs_song"
+    },
+    {
+      "bout": "Namsrai Batbayar vs Andre Lima",
+      "label": 0,
+      "base": 0.2734284985011002,
+      "nudged": 0.2734284985011002,
+      "signals": [],
+      "youtube_lean": 0.0,
+      "youtube_n_signals": 0,
+      "card": "ufc_fight_night_nurmagomedov_vs_song"
+    },
+    {
+      "bout": "Rei Tsuruya vs Kevin Borjas",
+      "label": 1,
+      "base": 0.8887136808460288,
+      "nudged": 0.8887136808460288,
+      "signals": [],
+      "youtube_lean": 0.429,
+      "youtube_n_signals": 2,
+      "card": "ufc_fight_night_nurmagomedov_vs_song"
+    },
+    {
+      "bout": "Xiao Long vs Francesco Nuzzi",
+      "label": 0,
+      "base": 0.6139437052986255,
+      "nudged": 0.6139437052986255,
+      "signals": [],
+      "youtube_lean": -1.0,
+      "youtube_n_signals": 2,
+      "card": "ufc_fight_night_nurmagomedov_vs_song"
+    },
+    {
+      "bout": "Jack Jenkins vs Sean Woodson",
+      "label": 0,
+      "base": 0.3762796293444779,
+      "nudged": 0.3762796293444779,
+      "signals": [],
+      "youtube_lean": -1.0,
+      "youtube_n_signals": 2,
+      "card": "ufc_fight_night_nurmagomedov_vs_song"
+    },
+    {
+      "bout": "Lawrence Lui vs Hector de Sousa Santiago",
+      "label": 0,
+      "base": 0.7771583956054168,
+      "nudged": 0.7771583956054168,
+      "signals": [],
+      "youtube_lean": 0.0,
+      "youtube_n_signals": 0,
+      "card": "ufc_fight_night_nurmagomedov_vs_song"
+    },
+    {
+      "bout": "Xiong Jingnan vs Julia Polastri",
+      "label": 0,
+      "base": 0.256650571620797,
+      "nudged": 0.256650571620797,
+      "signals": [],
+      "youtube_lean": 1.0,
+      "youtube_n_signals": 1,
+      "card": "ufc_fight_night_nurmagomedov_vs_song"
+    },
+    {
+      "bout": "Ding Meng vs Cameron Nelson",
+      "label": 0,
+      "base": 0.5192348075428206,
+      "nudged": 0.5192348075428206,
+      "signals": [],
+      "youtube_lean": 1.0,
+      "youtube_n_signals": 1,
+      "card": "ufc_fight_night_nurmagomedov_vs_song"
+    }
+  ]
+}

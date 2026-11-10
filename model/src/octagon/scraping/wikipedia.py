@@ -19,8 +19,13 @@ def _page_html(title: str) -> str:
     return resp.json()["parse"]["text"]
 
 
+# A footnote marker such as [17] or [a]. Joining a cell's text with spaces
+# turns it into "[ 17 ]", which would otherwise end up inside a fighter's name.
+CITATION = re.compile(r"\[\s*[0-9a-z]{1,3}\s*\]")
+
+
 def _clean(cell) -> str:
-    return " ".join(cell.get_text(" ", strip=True).split())
+    return " ".join(CITATION.sub("", cell.get_text(" ", strip=True)).split())
 
 
 def next_event(today: date | None = None) -> tuple[str, str, str]:
@@ -70,7 +75,7 @@ def announced_bouts(soup) -> list[dict]:
         return []
     bouts = []
     for item in listing.find_all("li", recursive=False):
-        text = re.sub(r"\[\d+\]", "", _clean(item))  # strip citation marks
+        text = _clean(item)
         match = ANNOUNCED_PATTERN.match(text)
         if not match:
             continue

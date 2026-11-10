@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
+import { Inter } from "next/font/google";
+
 import { SpinningLogo } from "@/components/SpinningLogo";
 import "./globals.css";
+
+const inter = Inter({ subsets: ["latin"], display: "swap", variable: "--font-inter" });
 
 export const metadata: Metadata = {
   title: "Ictus — UFC trading bot",
@@ -8,20 +12,28 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en" className="h-full">
-    <body className="flex min-h-full flex-col">
-      <header className="border-b border-line bg-paper">
-        <div className="site-width flex items-center justify-between gap-4">
-          <SpinningLogo />
-          <p className="label text-[10px] text-ash">UFC × Kalshi</p>
-        </div>
-      </header>
-      <main id="main" className="site-width flex-1 py-8 sm:py-10">{children}</main>
-      <footer className="border-t border-line">
-        <p className="site-width py-5 text-[11px] leading-relaxed text-mist">
-          No model guarantees a profit. Only bet what you can afford to lose.
-        </p>
-      </footer>
-    </body>
-  </html>;
+  return (
+    <html lang="en" className={`${inter.variable} h-full`}>
+      <body className="flex min-h-full flex-col">
+        <header className="nav">
+          <div className="site-width nav-row">
+            <div className="nav-left">
+              <SpinningLogo />
+              <nav className="nav-links" aria-label="On this page">
+                <a href="#picks">Model picks</a>
+                <a href="#betting">Betting</a>
+              </nav>
+            </div>
+            <p className="nav-meta">UFC × Kalshi</p>
+          </div>
+        </header>
+        <main id="main" className="flex-1">{children}</main>
+        <footer className="site-foot">
+          <p className="site-width">
+            No model guarantees a profit. Only bet what you can afford to lose.
+          </p>
+        </footer>
+      </body>
+    </html>
+  );
 }

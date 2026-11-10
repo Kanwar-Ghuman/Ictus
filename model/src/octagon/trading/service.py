@@ -173,6 +173,21 @@ async def collect_markets(engine: TradingEngine):
             engine.disconnect_book()
 
 
+# How often a running session looks for fights whose market has just appeared.
+GROW_SECONDS = 30.0
+
+
+async def grow(add_new_fights):
+    while True:
+        await asyncio.sleep(GROW_SECONDS)
+        try:
+            await asyncio.to_thread(add_new_fights)
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # a failed look is retried on the next pass
+            continue
+
+
 async def decide(engine: TradingEngine):
     while True:
         try:
@@ -200,7 +215,8 @@ def create_app(engine: TradingEngine, token: str, *, background: bool = False,
         tasks = []
         if background:
             tasks = [asyncio.create_task(collect_fights(engine, gateway_url)),
-                     asyncio.create_task(decide(engine))]
+                     asyncio.create_task(decide(engine)),
+                     asyncio.create_task(grow(add_new_fights))]
             if market_stream:
                 tasks.append(asyncio.create_task(collect_markets(engine)))
         try:
@@ -294,9 +310,46 @@ def create_app(engine: TradingEngine, token: str, *, background: bool = False,
             plan["problem"] = "Can't reach Kalshi to find tonight's markets."
         return plan
 
+    def add_new_fights() -> list[str]:
+        """Kalshi lists some fights late. Add them to a running session as they appear."""
+        config = engine.config
+        if not engine.running.is_set() or not config:
+            return []
+        proposal = current_plan()
+        if (not proposal["card"] or proposal["card"]["slug"] != config["card_slug"]
+                or proposal["event"]["espn_event_id"] != config["espn_event_id"]):
+            return []
+        mapped = {m["bout_id"] for m in config["mappings"]}
+        new = [{"bout_id": f["bout_id"], "ticker": f["ticker"], "yes_fighter": f["yes_fighter"],
+                "f1": f["f1"], "f2": f["f2"], "confirmed": True}
+               for f in proposal["fights"] if f["include"] and f["bout_id"] not in mapped]
+        detail = findings.card_detail(config["card_slug"]) if new else None
+        return engine.extend(new, detail) if detail else []
+
+    app.state.add_new_fights = add_new_fights
+
+    def start_predictions() -> dict:
+        if preparer is None:
+            raise ValueError("Generating predictions is unavailable in this service")
+        with engine.feed_lock:
+            feed = copy.deepcopy(engine.feed) or {}
+        name = (feed.get("meta") or {}).get("event_name")
+        if not name:
+            raise ValueError("Waiting for the live fight feed")
+        pairs = [((b.get("fighter_a") or {}).get("name", ""), (b.get("fighter_b") or {}).get("name", ""))
+                 for b in feed.get("data") or [] if isinstance(b, dict)]
+        return preparer.start(name, pairs)
+
     @app.get("/api/trading/plan", dependencies=auth)
     def plan():
-        return current_plan()
+        proposal = current_plan()
+        # A card with no predictions yet gets them without anyone asking. Only
+        # the first time: a failed run waits for the dashboard's retry button.
+        if proposal.get("needs_predictions") and preparer and preparer.status()["state"] == "idle":
+            start_predictions()
+        if proposal["card"] and preparer and hasattr(preparer, "ensure_context"):
+            preparer.ensure_context(proposal["card"]["slug"], str(proposal["card"]["date"]))
+        return proposal
 
     @app.post("/api/trading/quickstart", dependencies=auth)
     def quickstart(body: QuickstartRequest):
@@ -315,10 +368,12 @@ def create_app(engine: TradingEngine, token: str, *, background: bool = False,
             raise ValueError(proposal["problem"] or "No fights can be traded right now.")
         if any(o["reserved"] for o in orders):
             engine.reconcile()
+        # A fight whose market cannot be checked this second is left out, not
+        # allowed to block the rest. add_new_fights picks it up once it can.
         status = engine.configure({"card_slug": proposal["card"]["slug"],
                                    "espn_event_id": proposal["event"]["espn_event_id"],
                                    "budget_dollars": body.budget_dollars, "mappings": mappings},
-                                  card(proposal["card"]["slug"]))
+                                  card(proposal["card"]["slug"]), skip_invalid=True)
         return engine.start(session_id=status["event"]["session_id"],
                             config_version=status["config_version"])
 
@@ -328,16 +383,7 @@ def create_app(engine: TradingEngine, token: str, *, background: bool = False,
 
     @app.post("/api/trading/prepare", dependencies=auth)
     def prepare():
-        if preparer is None:
-            raise ValueError("Generating predictions is unavailable in this service")
-        with engine.feed_lock:
-            feed = copy.deepcopy(engine.feed) or {}
-        name = (feed.get("meta") or {}).get("event_name")
-        if not name:
-            raise ValueError("Waiting for the live fight feed")
-        pairs = [((b.get("fighter_a") or {}).get("name", ""), (b.get("fighter_b") or {}).get("name", ""))
-                 for b in feed.get("data") or [] if isinstance(b, dict)]
-        return preparer.start(name, pairs)
+        return start_predictions()
 
     return app
 
@@ -380,14 +426,12 @@ def run(mode: str, port: int, gateway_url: str, state_dir: Path, market_environm
 
             app = create_app(engine, token, background=True, gateway_url=gateway_url, market_stream=stream,
                              preparer=CardPreparer(project_root(), state_dir / "prepare"))
-            print(f"Ictus {mode} controls: http://127.0.0.1:{port}; dashboard: http://localhost:3000/trading")
+            print(f"Ictus {mode} controls: http://127.0.0.1:{port}; dashboard: http://localhost:3000")
             if mode == "live":
                 print(f"LIVE MODE: REAL-MONEY orders on production Kalshi, hard cap ${engine.max_budget} per event.")
             if inplay is not None:
-                print("IN-FIGHT: live clock repricing, one-second retries. No trading edge has been demonstrated.")
-            else:
-                print("Production orders disabled.")
-            print("Service starts paused. Never expose this port publicly.")
+                print("IN-FIGHT: also trades during the fight. No trading edge has been demonstrated.")
+            print("Waiting for an amount on the dashboard. Never expose this port publicly.")
             uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning", access_log=False)
         finally:
             client.close()

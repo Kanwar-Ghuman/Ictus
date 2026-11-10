@@ -14,34 +14,37 @@ flowchart LR
   B --> C[Winner / method / round]
   C --> D[Frozen card]
   D --> G[Bot]
-  E[ESPN live] --> G
+  E[ESPN live: odds, clock, stats] --> G
   F[Kalshi book] --> G
-  G --> H{p beats ask?}
-  H -->|yes| I[One order]
+  G --> H{p beats ask by 3¢?}
+  H -->|yes| L{Passes the guards?}
   H -->|no| J[Skip]
+  L -->|yes| I[Order]
+  L -->|no| J
   I --> K[Ledger]
 ```
 
-Picks start from the frozen pre-fight card. With `--in-fight`, the live ESPN clock and stats reprice the fight, and the bot buys when that price still clears fees and depth.
+The bot bets one number per fight: the sportsbook line ESPN streams with the fight, nudged by the model. During a fight the live clock and stats reprice it. An order also has to pass the guards: no longshots under 20¢, never both fighters, and no buying a price that is falling.
 
 ## Kalshi bot
 
 One command starts the ESPN fight feed, the bot, and the dashboard.
 
 ```bash
-./ictus.sh paper              # practice, no money
-./ictus.sh demo               # Kalshi demo account
-./ictus.sh live 5             # real money; hard $5 cap per event
-./ictus.sh paper --in-fight   # reprice from the live fight and bet during it
+./ictus.sh              # practice, no money
+./ictus.sh live 20      # real money; hard $20 cap on the event
+./ictus.sh demo         # Kalshi demo account
+./ictus.sh stop         # stop whatever an earlier run left running
 ```
 
 Open [http://localhost:3000](http://localhost:3000), set a spend limit, press **Start**.
 Ctrl+C in that terminal stops everything.
 
-- Matches tonight’s ESPN card to frozen picks and each Kalshi `KXUFCFIGHT` winner market
-- Builds predictions on the page if none exist yet
-- One pre-fight attempt sequence per fight. With `--in-fight`, the live clock and stats reprice the fight and the bot can buy about once a second while the edge lasts, plus between rounds
-- Hard event budget; a stuck or unclear order pauses the session
+- Matches tonight’s ESPN card to saved predictions and each Kalshi `KXUFCFIGHT` winner market
+- Builds predictions by itself if none exist yet
+- Trades before and during fights; `--pre-fight-only` stops it at the opening bell
+- Hard event budget; an unconfirmed order holds new orders until Kalshi confirms it
+- Shows profit so far as fights finish
 
 Winner markets only. Method, round, and parlay contracts are skipped.
 

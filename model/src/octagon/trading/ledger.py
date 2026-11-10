@@ -51,6 +51,10 @@ class Ledger:
                 CREATE TABLE IF NOT EXISTS active_sessions (
                     mode TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id)
                 );
+                CREATE TABLE IF NOT EXISTS results (
+                    session_id TEXT NOT NULL REFERENCES sessions(id), bout_id TEXT NOT NULL,
+                    winner TEXT, PRIMARY KEY(session_id, bout_id)
+                );
             """)
             self._migrate_attempt_keys(db)
 
@@ -167,6 +171,19 @@ class Ledger:
         return [dict(row) | {"price_dollars": row["price"],
                              "cost_dollars": dollars(row["spent"]),
                              "reserved_dollars": dollars(row["reserved"])} for row in rows]
+
+    def record_result(self, session_id: str, bout_id: str, result: dict):
+        """ESPN's result for a bout: a winner's name, or a 50-cent draw/no-contest."""
+        with self.connection() as db:
+            db.execute("INSERT OR REPLACE INTO results VALUES(?,?,?)",
+                       (session_id, bout_id, result.get("winner")))
+
+    def results(self, session_id: str) -> dict[str, dict]:
+        with self.connection() as db:
+            rows = db.execute("SELECT bout_id, winner FROM results WHERE session_id=?",
+                              (session_id,)).fetchall()
+        return {row["bout_id"]: {"winner": row["winner"]} if row["winner"] else {"split": True}
+                for row in rows}
 
     def block_bout(self, session_id: str, bout_id: str, reason: str):
         with self.connection() as db:

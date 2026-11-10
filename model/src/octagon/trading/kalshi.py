@@ -439,10 +439,16 @@ class KalshiOrderBook:
             raise KalshiBookError("Invalid payload")
         ticker = _identifier(data.get("market_ticker"))
         if kind == "orderbook_snapshot":
-            bids = {
-                "yes": self._levels(data.get("yes_dollars_fp")),
-                "no": self._levels(data.get("no_dollars_fp")),
-            }
+            if "yes_dollars_fp" not in data and "no_dollars_fp" not in data:
+                # A settled market's snapshot carries no levels at all. That is
+                # an empty book, not a broken stream: rejecting it would drop
+                # every other market on the subscription once one fight ends.
+                bids = {"yes": {}, "no": {}}
+            else:
+                bids = {
+                    "yes": self._levels(data.get("yes_dollars_fp")),
+                    "no": self._levels(data.get("no_dollars_fp")),
+                }
             self._books[ticker] = _Book(sid, bids, received_at)
         else:
             book = self._books.get(ticker)

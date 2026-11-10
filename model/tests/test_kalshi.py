@@ -341,6 +341,15 @@ def test_legacy_cent_fields_are_not_silently_treated_as_dollars():
         book.apply(malformed)
 
 
+def test_a_settled_market_snapshot_is_an_empty_book_and_keeps_the_stream():
+    book = KalshiOrderBook()
+    book.apply(snapshot())
+    settled = {"type": "orderbook_snapshot", "sid": 1, "seq": 2,
+               "msg": {"market_ticker": "SETTLED", "market_id": "", "clock": 0}}
+    assert book.apply(settled) == "SETTLED"
+    assert book.is_ready(snapshot()["msg"]["market_ticker"])
+
+
 def test_subscription_requests_realtime_fixed_point_books():
     message = KalshiClient.subscription_message(["A", "B", "A"])
     assert message["params"] == {

@@ -633,6 +633,20 @@ def cmd_score_card(args: argparse.Namespace, cfg: dict) -> None:
           "the source CSVs lag a live event by a day or two.")
 
 
+def cmd_score_context(args: argparse.Namespace, cfg: dict) -> None:
+    """Score what YouTube, headlines and short-notice flags would have added."""
+    from octagon.db.schema import connect
+    from octagon.eval.context_signal import run
+
+    report = resolve_path("reports/context_signal_eval.md")
+    summary = run(connect(resolve_path(cfg["data"]["db_path"])), resolve_path("cards"), report)
+    scored, moved = summary["all"], summary["moved"]
+    print(f"Scored {scored['n'] if scored else 0} finished fights; "
+          f"the context moved {moved['n'] if moved else 0} of them.")
+    print(summary["verdict"])
+    print(f"Wrote {report}")
+
+
 def cmd_serve(args: argparse.Namespace, cfg: dict) -> None:
     """Serve the findings over HTTP for the Next.js frontend."""
     import uvicorn
@@ -970,6 +984,11 @@ def main() -> None:
     p = sub.add_parser("score-card", help="grade a past card against the results")
     p.add_argument("--card", required=True, help="path to the card YAML that was predicted")
     p.set_defaults(func=cmd_score_card)
+
+    sub.add_parser(
+        "score-context",
+        help="measure whether YouTube/news context would improve the bot's number"
+    ).set_defaults(func=cmd_score_context)
 
     p = sub.add_parser("serve", help="run the read-only findings API (for frontend/)")
     p.add_argument("--host", default="127.0.0.1")

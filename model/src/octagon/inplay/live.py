@@ -72,16 +72,17 @@ def parse_stats(stats: dict) -> dict[str, float]:
     return out
 
 
-def _oriented_stats(bout: dict, f1: str, f2: str, normalize) -> tuple[dict, dict]:
-    by_name = {normalize(str((bout.get(c) or {}).get("name", ""))): bout.get(c) or {}
-               for c in ("fighter_a", "fighter_b")}
-    a, b = by_name.get(normalize(f1)), by_name.get(normalize(f2))
-    if a is None or b is None:
+def _oriented_stats(bout: dict, f1: str, f2: str, orient) -> tuple[dict, dict]:
+    """(f1 stats, f2 stats). ``orient(f1, f2, a, b)`` says which corner is f1."""
+    corners = [bout.get(key) or {} for key in ("fighter_a", "fighter_b")]
+    f1_is_a = orient(f1, f2, *(str(c.get("name", "")) for c in corners))
+    if f1_is_a is None:
         raise ValueError("ESPN fighters do not match the card")
-    return parse_stats(a.get("stats") or {}), parse_stats(b.get("stats") or {})
+    first, second = corners if f1_is_a else reversed(corners)
+    return parse_stats(first.get("stats") or {}), parse_stats(second.get("stats") or {})
 
 
-def fight_progress(bout: dict, f1: str, f2: str, normalize) -> tuple[float, dict, dict, str]:
+def fight_progress(bout: dict, f1: str, f2: str, orient) -> tuple[float, dict, dict, str]:
     """(elapsed rounds, f1 stats, f2 stats, phase) while a bout is in progress.
 
     ``break`` is a completed round. ``live`` is the current round, with the
@@ -90,7 +91,7 @@ def fight_progress(bout: dict, f1: str, f2: str, normalize) -> tuple[float, dict
     if bout.get("status") != "in_progress":
         raise ValueError("Bout is not in progress")
     if bout.get("status_detail") == BREAK_STATUS:
-        round_k, stats_1, stats_2 = break_inputs(bout, f1, f2, normalize)
+        round_k, stats_1, stats_2 = break_inputs(bout, f1, f2, orient)
         return float(round_k), stats_1, stats_2, "break"
     round_k = bout.get("round")
     if not isinstance(round_k, int) or isinstance(round_k, bool) or round_k < 1:
@@ -104,11 +105,11 @@ def fight_progress(bout: dict, f1: str, f2: str, normalize) -> tuple[float, dict
     elapsed = (round_k - 1) + (ROUND_SECONDS - remaining) / ROUND_SECONDS
     if elapsed <= 0:
         raise ValueError("Live clock has not started")
-    stats_1, stats_2 = _oriented_stats(bout, f1, f2, normalize)
+    stats_1, stats_2 = _oriented_stats(bout, f1, f2, orient)
     return elapsed, stats_1, stats_2, "live"
 
 
-def break_inputs(bout: dict, f1: str, f2: str, normalize) -> tuple[int, dict, dict]:
+def break_inputs(bout: dict, f1: str, f2: str, orient) -> tuple[int, dict, dict]:
     """(completed round k, f1 stats, f2 stats) during a between-rounds break.
 
     Raises ValueError for anything else: live action, unknown status, stats
@@ -119,5 +120,5 @@ def break_inputs(bout: dict, f1: str, f2: str, normalize) -> tuple[int, dict, di
     round_k = bout.get("round")
     if not isinstance(round_k, int) or isinstance(round_k, bool) or round_k < 1:
         raise ValueError("Unknown completed round")
-    stats_1, stats_2 = _oriented_stats(bout, f1, f2, normalize)
+    stats_1, stats_2 = _oriented_stats(bout, f1, f2, orient)
     return round_k, stats_1, stats_2

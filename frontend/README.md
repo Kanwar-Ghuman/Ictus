@@ -1,7 +1,7 @@
 # Ictus — trading dashboard
 
 Local dashboard for the Kalshi trading bot in `../model`. Start everything with
-`../ictus.sh paper` (or `live <dollars>`) from the repository root; see the root
+`../ictus.sh` (or `../ictus.sh live <dollars>`) from the repository root; see the root
 README.
 
 The page talks to the bot through `src/app/api/bot/[action]/route.ts`, which

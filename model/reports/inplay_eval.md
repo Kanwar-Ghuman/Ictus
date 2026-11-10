@@ -8,7 +8,7 @@ Kalshi prices exist to compare against. Profitability needs forward paper tradin
 ## Protocol
 
 - Train: closing-line prior, before 2022-01-01 (3857 rows).
-- Validation: closing-line prior, 2022–2023 (993 rows); selects C only.
+- Validation: closing-line prior, 2022–2023 (993 rows); selects C, then the three-round slope.
 - Test: skill-model prior, 2024+ (2018 rows); reported once.
 - Selected C = 0.03 (validation log loss by C: 0.01: 0.5239, 0.03: 0.5227, 0.1: 0.5227, 0.3: 0.5233, 1.0: 0.5236).
 - Saved artifact refit on 4850 closing-line rows through 2023.
@@ -17,18 +17,32 @@ Kalshi prices exist to compare against. Profitability needs forward paper tradin
 
 | split | after round | n | log loss | Brier | accuracy | ECE |
 |---|---|---:|---|---|---|---|
-| valid (p_market) | all | 993 | 0.6253 → **0.5227** | 0.2179 → 0.1707 | 65.8% → 74.8% | 0.036 → 0.047 |
-| valid (p_market) | 1 | 515 | 0.6076 → **0.5557** | 0.2099 → 0.1867 | 67.8% → 71.5% | 0.044 → 0.060 |
-| valid (p_market) | 2 | 395 | 0.6154 → **0.4296** | 0.2133 → 0.1382 | 67.3% → 81.3% | 0.050 → 0.053 |
+| valid (p_market) | all | 993 | 0.6253 → **0.5167** | 0.2179 → 0.1684 | 65.8% → 74.8% | 0.036 → 0.043 |
+| valid (p_market) | 1 | 515 | 0.6076 → **0.5513** | 0.2099 → 0.1844 | 67.8% → 71.5% | 0.044 → 0.050 |
+| valid (p_market) | 2 | 395 | 0.6154 → **0.4204** | 0.2133 → 0.1354 | 67.3% → 81.3% | 0.050 → 0.037 |
 | valid (p_market) | 3 | 44 | 0.7915 → **0.7426** | 0.2920 → 0.2250 | 45.5% → 63.6% | 0.225 → 0.228 |
 | valid (p_market) | 4 | 39 | 0.7726 → **0.7805** | 0.2860 → 0.2284 | 46.2% → 66.7% | 0.215 → 0.181 |
-| test (p_skill) | all | 2018 | 0.6428 → **0.4997** | 0.2257 → 0.1665 | 62.8% → 75.4% | 0.037 → 0.033 |
-| test (p_skill) | 1 | 1043 | 0.6402 → **0.5754** | 0.2246 → 0.1959 | 62.8% → 70.0% | 0.037 → 0.040 |
-| test (p_skill) | 2 | 830 | 0.6418 → **0.4454** | 0.2252 → 0.1444 | 63.0% → 79.6% | 0.036 → 0.037 |
+| test (p_skill) | all | 2018 | 0.6428 → **0.4982** | 0.2257 → 0.1657 | 62.8% → 75.4% | 0.037 → 0.027 |
+| test (p_skill) | 1 | 1043 | 0.6402 → **0.5741** | 0.2246 → 0.1951 | 62.8% → 70.0% | 0.037 → 0.041 |
+| test (p_skill) | 2 | 830 | 0.6418 → **0.4435** | 0.2252 → 0.1433 | 63.0% → 79.6% | 0.036 → 0.038 |
 | test (p_skill) | 3 | 77 | 0.6732 → **0.3306** | 0.2392 → 0.1053 | 61.0% → 87.0% | 0.066 → 0.106 |
 | test (p_skill) | 4 | 68 | 0.6617 → **0.1919** | 0.2340 → 0.0551 | 63.2% → 94.1% | 0.063 → 0.068 |
 
 Rounds 3–4 exist only for five-round fights; their samples are small.
+The validation rows also chose the slope, so read calibration on the test rows.
+
+## Confidence slope
+
+The raw logit is too timid in three-round fights: the fighter it puts at 25% wins
+about 20% of the time. One multiplier on the logit, fit on validation, fixes that.
+Five-round fights are left at 1.0: too few rows, and their slope flips between eras.
+
+Slopes: 3 rounds × 1.315.
+
+| three-round test fights | n | log loss | Brier | ECE |
+|---|---:|---|---|---|
+| raw | 1662 | 0.5132 | 0.1712 | 0.037 |
+| with slope | 1662 | 0.5114 | 0.1702 | 0.025 |
 
 ## Coefficients (scaled features)
 

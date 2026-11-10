@@ -296,38 +296,14 @@ def card_predictions(conn, card_path: Path, artifact: dict, cfg: dict) -> CardPr
 
         context_payload = card_context.load_context(card_path)
         if context_payload and mode != "skill_only":
-            from octagon.db.parsing import normalize_name as _nn
-
-            fighters_ctx = context_payload.get("fighters", {})
-            bouts_ctx = {
-                (b.get("f1_key"), b.get("f2_key")): b
-                for b in context_payload.get("bouts", [])
-            }
             for i, (_, row) in enumerate(upcoming.iterrows()):
-                k1, k2 = _nn(row["f1_name"]), _nn(row["f2_name"])
-                c1, c2 = fighters_ctx.get(k1, {}), fighters_ctx.get(k2, {})
-                bout = bouts_ctx.get((k1, k2)) or bouts_ctx.get((k2, k1)) or {}
-                yt = bout.get("youtube") or {}
-                # Flip the lean if the context bout is stored f2-first.
-                lean = yt.get("lean_f1")
-                if lean is not None and bout.get("f1_key") == k2:
-                    lean = -float(lean)
-                adjusted, notes = card_context.soft_adjust_p_f1(
-                    float(p[i]),
-                    float(row["f1_n_fights"] or 0),
-                    float(row["f2_n_fights"] or 0),
-                    c1.get("pro_record"),
-                    c2.get("pro_record"),
-                    c1.get("circumstances"),
-                    c2.get("circumstances"),
-                    float(c1.get("sentiment") or 0.0),
-                    float(c2.get("sentiment") or 0.0),
+                adjusted, notes = card_context.adjust_bout(
+                    context_payload, row["f1_name"], row["f2_name"], float(p[i]),
+                    f1_n_fights=float(row["f1_n_fights"] or 0),
+                    f2_n_fights=float(row["f2_n_fights"] or 0),
                     has_market_odds=bool(np.isfinite(fair[i])),
-                    youtube_lean=None if lean is None else float(lean),
-                    youtube_n_signals=int(yt.get("n_signals") or 0),
-                    skill_p=float(p_skill[i]),
-                )
-                if notes and mode != "skill_only":
+                    skill_p=float(p_skill[i]))
+                if notes:
                     p[i] = adjusted
                     context_notes.setdefault(i, []).extend(notes)
     except Exception:  # noqa: BLE001 — context is optional at predict time

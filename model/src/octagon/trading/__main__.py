@@ -54,8 +54,10 @@ def main(argv=None):
     defaults = RiskPolicy()
     parser.add_argument("--min-edge", type=fraction, default=defaults.min_net_edge,
                         help="Minimum expected profit per $1 contract after fees (default 0.03)")
+    parser.add_argument("--min-price", type=unit_interval, default=defaults.min_price,
+                        help="Never pay less than this per contract; longshots lose (default 0.20)")
     parser.add_argument("--draw-rate", type=unit_interval, default=defaults.draw_settlement_rate,
-                        help="Share of 50-cent draw/no-contest settlements (default 0 until measured)")
+                        help="Share of 50-cent draw/no-contest settlements (default 0.018, measured)")
     parser.add_argument("--venue-lag", action="store_true",
                         help="Also require the Kalshi ask to lag a same-time sportsbook price")
     parser.add_argument("--max-bout-fraction", type=fraction, default=defaults.max_bout_fraction,
@@ -67,7 +69,7 @@ def main(argv=None):
     parser.add_argument("--max-source-age-seconds", type=float, default=defaults.max_source_age_seconds,
                         help="Oldest acceptable ESPN espn_updated_at; ESPN often changes it only every 1-2 min")
     parser.add_argument("--in-fight", action="store_true",
-                        help="Reprice from the live clock and stats and trade during the fight (off by default)")
+                        help="Also trade during the fight, from the live clock and stats (off by default)")
     parser.add_argument("--inplay-artifact", type=Path, default=project_root() / "artifacts" / "inplay.json",
                         help="Between-rounds model from `octagon train-inplay`")
     args = parser.parse_args(argv)
@@ -84,6 +86,7 @@ def main(argv=None):
     if args.min_ufc_fights < 0:
         parser.error("--min-ufc-fights must be 0 or more")
     policy = RiskPolicy(min_net_edge=args.min_edge,
+                        min_price=args.min_price,
                         max_bout_fraction=args.max_bout_fraction,
                         inplay_reserve=args.inplay_reserve,
                         min_ufc_fights=args.min_ufc_fights,

@@ -1,5 +1,9 @@
 # TDD evidence: live repricing and rapid in-fight orders
 
+> Superseded on November 9, 2026. Mid-round buys are now limited to 3 a round, 30 seconds
+> apart, behind the guards in [kalshi_trading.md](../kalshi_trading.md). This file records
+> the earlier once-a-second behavior.
+
 Source plan: none. Journeys were written for the request to reprice from live fight data and trade quickly. The working tree already held unrelated uncommitted edits, so this run did not create checkpoint commits.
 
 ## User journeys

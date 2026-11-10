@@ -8,8 +8,10 @@ profit or eliminate the possibility of losing an event budget.
 
 The winner model is a **pre-fight** model. It combines logistic regression with
 calibrated LightGBM predictions using fighter histories from before the card.
-`prediction.mode` currently selects `skill_only`; the trading integration must
-use frozen `p_skill` with its original fighter orientation and event identity.
+`prediction.mode` currently selects `skill_only`. The trading integration does
+not bet the card's pick: it combines the card's `p_skill` with a sportsbook line
+read at trade time (see [kalshi_trading.md](kalshi_trading.md)), keeping the
+card's fighter orientation and event identity.
 Selecting a winner for every bout does not make every bout a trade opportunity.
 
 The local feature table contains 8,731 decisive fights through **September 12,

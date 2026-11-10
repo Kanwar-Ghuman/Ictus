@@ -463,6 +463,43 @@ def soft_adjust_p_f1(
     return max(0.02, min(0.98, adjusted)), notes
 
 
+def bout_signals(payload: dict, f1_name: str, f2_name: str) -> dict:
+    """One bout's saved context, oriented to (f1, f2).
+
+    Keys: both fighters' context dicts, and the YouTube lean toward f1 with
+    how many comments it was read from.
+    """
+    k1, k2 = normalize_name(f1_name), normalize_name(f2_name)
+    fighters = payload.get("fighters", {})
+    bouts = {(b.get("f1_key"), b.get("f2_key")): b for b in payload.get("bouts", [])}
+    bout = bouts.get((k1, k2)) or bouts.get((k2, k1)) or {}
+    youtube = bout.get("youtube") or {}
+    lean = youtube.get("lean_f1")
+    if lean is not None:
+        # The lean is stored toward the context's own first fighter.
+        lean = -float(lean) if bout.get("f1_key") == k2 else float(lean)
+    return {"f1": fighters.get(k1, {}), "f2": fighters.get(k2, {}),
+            "youtube_lean": lean, "youtube_n_signals": int(youtube.get("n_signals") or 0)}
+
+
+def adjust_bout(payload: dict, f1_name: str, f2_name: str, p: float, *,
+                f1_n_fights: float, f2_n_fights: float, has_market_odds: bool,
+                skill_p: float) -> tuple[float, list[str]]:
+    """``soft_adjust_p_f1`` for one bout, reading its inputs from a saved context."""
+    signals = bout_signals(payload, f1_name, f2_name)
+    c1, c2 = signals["f1"], signals["f2"]
+    return soft_adjust_p_f1(
+        p, f1_n_fights, f2_n_fights,
+        c1.get("pro_record"), c2.get("pro_record"),
+        c1.get("circumstances"), c2.get("circumstances"),
+        float(c1.get("sentiment") or 0.0), float(c2.get("sentiment") or 0.0),
+        has_market_odds=has_market_odds,
+        youtube_lean=signals["youtube_lean"],
+        youtube_n_signals=signals["youtube_n_signals"],
+        skill_p=skill_p,
+    )
+
+
 def fetch_card_context(
     card_path: Path,
     wiki_page: str | None = None,

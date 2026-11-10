@@ -36,9 +36,9 @@ class RiskPolicy:
     # Optional extra margin subtracted from the model probability (0 = trust it).
     probability_haircut: Decimal = Decimal("0")
     # Share of fights that settle at 50 cents (draw / no-contest) under the
-    # KXUFCFIGHT rules. 0 until that rate is measured. Expected payout is
+    # KXUFCFIGHT rules: 70 of 3,941 UFC fights from 2019 on. Expected payout is
     # p + d * (0.5 - p): favorites get cheaper, underdogs get a little dearer.
-    draw_settlement_rate: Decimal = Decimal("0")
+    draw_settlement_rate: Decimal = Decimal("0.018")
     # Off until a scorecard shows pre-fight closing-line value at or above zero.
     # When on, a pre-fight buy also has to beat a same-time sportsbook.
     venue_lag: bool = False
@@ -46,6 +46,19 @@ class RiskPolicy:
     max_book_gap: Decimal = Decimal("0.08")
     # Minimum expected profit per $1 contract after the reserved taker fee.
     min_net_edge: Decimal = Decimal("0.03")
+    # Never pay less than this for a contract. On 697 priced validation fights
+    # the model's longshot buys under 20 cents returned -52%, and a one-cent fee
+    # is a fifth of a five-cent contract.
+    min_price: Decimal = Decimal("0.20")
+    # In-fight only: skip a side whose ask fell this much inside the window.
+    # ESPN stats trail the broadcast, so a sliding price is news the model
+    # has not seen yet.
+    max_price_drop: Decimal = Decimal("0.05")
+    price_window_seconds: float = 90.0
+    # Watch a live market this long before the first mid-round buy.
+    min_price_watch_seconds: float = 15.0
+    # How often a live bout's book is sampled for that check.
+    price_sample_seconds: float = 3.0
     # A bet with this Kelly fraction gets exactly one slice; stronger edges get
     # more, up to max_slice_multiple slices.
     full_slice_kelly: Decimal = Decimal("0.10")
@@ -59,9 +72,10 @@ class RiskPolicy:
     prefight_retry_seconds: float = 30.0
     max_break_attempts: int = 3
     break_retry_seconds: float = 4.0
-    # Live rounds reprice off the clock and can buy again while the edge lasts.
-    max_live_attempts: int = 12
-    live_retry_seconds: float = 1.0
+    # Live rounds reprice off the clock. A few spaced buys per round, so the
+    # bot cannot keep averaging down into a price that is collapsing.
+    max_live_attempts: int = 3
+    live_retry_seconds: float = 30.0
     # Both fighters need this many UFC fights for skill-model forecasts (0 = allow debuts).
     min_ufc_fights: int = 1
     max_spread: Decimal = Decimal("0.08")

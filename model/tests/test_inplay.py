@@ -1,6 +1,7 @@
 """Between-rounds model and in-fight execution; exchange activity is faked."""
 
 import sqlite3
+import time
 from decimal import Decimal as D
 
 import pytest
@@ -9,7 +10,9 @@ from octagon.inplay import live as live_mod
 from octagon.inplay.live import BREAK_STATUS, break_inputs, parse_stats
 from octagon.inplay.model import FEATURES, InplayModel
 from octagon.live.espn import _parse_bout
-from octagon.trading.engine import TradingEngine, normalized_name
+from octagon.trading.engine import TradingEngine
+from octagon.trading.names import orient
+from octagon.trading.risk import RiskPolicy
 from octagon.trading.ledger import Ledger
 from tests.test_trading import Exchange, card, feed, iso, request
 
@@ -74,14 +77,14 @@ def test_break_inputs_only_during_a_break_and_by_name():
     bout = {"status": "in_progress", "status_detail": BREAK_STATUS, "round": 1,
             "fighter_a": {"name": "Bravo Fighter", "stats": QUIET},
             "fighter_b": {"name": "Alpha Fighter", "stats": ESPN_STATS}}
-    k, s1, s2 = break_inputs(bout, "Alpha Fighter", "Bravo Fighter", normalized_name)
+    k, s1, s2 = break_inputs(bout, "Alpha Fighter", "Bravo Fighter", orient)
     assert k == 1 and s1["sig_l"] == 15 and s2["sig_l"] == 3  # oriented by name, not slot
     for change in ({"status_detail": "STATUS_IN_PROGRESS_2"}, {"round": None},
                    {"status": "final"}):
         with pytest.raises(ValueError):
-            break_inputs(bout | change, "Alpha Fighter", "Bravo Fighter", normalized_name)
+            break_inputs(bout | change, "Alpha Fighter", "Bravo Fighter", orient)
     with pytest.raises(ValueError):
-        break_inputs(bout, "Alpha Fighter", "Someone Else", normalized_name)
+        break_inputs(bout, "Alpha Fighter", "Someone Else", orient)
 
 
 def test_espn_parser_keeps_raw_status_name():
@@ -108,12 +111,16 @@ def break_feed(round_k=1, detail=BREAK_STATUS, a_stats=ESPN_STATS, b_stats=QUIET
     return message
 
 
-def in_fight_engine(tmp_path, model=None):
+def in_fight_engine(tmp_path, model=None, policy=None):
     exchange = Exchange()
     engine = TradingEngine(Ledger(tmp_path / "ledger.db"), exchange, inplay=model or toy_model(),
-                           prefight_path=tmp_path / "prefight.json")
+                           prefight_path=tmp_path / "prefight.json", policy=policy)
     engine.configure(request(), inplay_card())
     return engine, exchange
+
+
+# Mid-round buys normally wait until the live price has been watched.
+NO_WATCH = RiskPolicy(min_price_watch_seconds=0)
 
 
 def settle_break(engine, bout_id="1", round_k=1):
@@ -144,7 +151,7 @@ def test_in_fight_trades_in_break_only_after_totals_settle_with_bounded_retries(
     engine.tick()
     decision = engine.decisions[0]
     assert decision["action"] == "paper" and decision["phase"] == "after round 1"
-    assert decision["prior"] == "initial pick"
+    assert decision["prior"] == "skill model"  # this card has no line at all
     orders = engine.ledger.orders(engine.session_id)
     assert [o["bout_id"] for o in orders] == ["1:r1"]
     engine.tick()
@@ -207,7 +214,7 @@ def test_finished_bout_is_blocked_and_skill_prior_needs_history(tmp_path):
     engine.update_feed(break_feed(1))  # no pre-fight Kalshi price was ever captured
     settle_break(engine)
     engine.tick()
-    assert engine.decisions[0].get("prior") == "initial pick"
+    assert engine.decisions[0].get("prior") == "skill model"
     final = break_feed(1)
     final["data"][0].update(status="final", status_detail="STATUS_FINAL")
     engine.update_feed(final)
@@ -304,16 +311,16 @@ def live_feed(clock="2:30", round_k=1, detail="STATUS_IN_PROGRESS"):
 def test_fight_progress_uses_the_round_clock_and_completed_breaks():
     bout = live_feed(clock="2:30", round_k=2)["data"][0]
     elapsed, s1, s2, phase = live_mod.fight_progress(
-        bout, "Alpha Fighter", "Bravo Fighter", normalized_name)
+        bout, "Alpha Fighter", "Bravo Fighter", orient)
     assert phase == "live" and elapsed == pytest.approx(1.5)
     assert s1["sig_l"] == 15 and s2["sig_l"] == 3
     breaking = break_feed(1)["data"][0]
     elapsed, _, _, phase = live_mod.fight_progress(
-        breaking, "Alpha Fighter", "Bravo Fighter", normalized_name)
+        breaking, "Alpha Fighter", "Bravo Fighter", orient)
     assert phase == "break" and elapsed == 1
     for change in ({"clock": None}, {"clock": "-"}, {"clock": "6:00"}, {"status": "final"}):
         with pytest.raises(ValueError):
-            live_mod.fight_progress(bout | change, "Alpha Fighter", "Bravo Fighter", normalized_name)
+            live_mod.fight_progress(bout | change, "Alpha Fighter", "Bravo Fighter", orient)
 
 
 def one_contract(exchange):
@@ -329,7 +336,7 @@ def live_price_model():
 
 
 def test_live_clock_can_change_the_price_and_trade(tmp_path):
-    engine, exchange = in_fight_engine(tmp_path, live_price_model())
+    engine, exchange = in_fight_engine(tmp_path, live_price_model(), NO_WATCH)
     one_contract(exchange)
     engine.update_feed(feed())
     engine.start()
@@ -350,7 +357,9 @@ def test_control_without_a_finish_is_not_a_buy(tmp_path):
     assert live_mod.held_without_threat(stats(ctrl=6, kd=0, sub=1), stats(ctrl=9 * 60 + 12))
     assert not live_mod.held_without_threat(stats(ctrl=9 * 60 + 12), stats(ctrl=6, kd=0, sub=1))
     assert not live_mod.held_without_threat(stats(ctrl=6, kd=1), stats(ctrl=9 * 60 + 12))
-    engine, exchange = in_fight_engine(tmp_path, toy_model())
+    # The price floor would refuse this 6-cent fighter first; lower it to reach the control check.
+    policy = RiskPolicy(min_price_watch_seconds=0, min_price=D("0.01"))
+    engine, exchange = in_fight_engine(tmp_path, toy_model(), policy)
     priced = inplay_card()
     priced["bouts"][0]["p_skill"] = 0.70
     engine.configure(request(), priced)
@@ -375,7 +384,71 @@ def test_in_fight_checks_run_on_the_live_retry_cadence(tmp_path):
     from octagon.trading.service import decide
 
     engine, _ = in_fight_engine(tmp_path)
-    assert engine.decision_interval == engine.policy.live_retry_seconds == 1.0
+    assert engine.decision_interval == 1.0
+    assert engine.policy.live_retry_seconds == 30.0  # buys are spaced, checks are not
     plain = TradingEngine(engine.ledger, Exchange())
     assert plain.decision_interval == 2.0
     assert "decision_interval" in inspect.getsource(decide)
+
+
+def test_a_mid_round_buy_waits_until_the_live_price_has_been_watched(tmp_path, monkeypatch):
+    real, skipped = time.monotonic, [0.0]
+    monkeypatch.setattr(time, "monotonic", lambda: real() + skipped[0])
+    engine, exchange = in_fight_engine(tmp_path, live_price_model())
+    one_contract(exchange)
+    engine.update_feed(feed())
+    engine.start()
+    engine.update_feed(live_feed(clock="0:30", round_k=3))
+    engine.tick()
+    assert "Watching the live price" in engine.decisions[0]["reason"]
+    assert not engine.ledger.orders(engine.session_id)
+    # Twenty seconds later the price has not moved: now it may buy.
+    skipped[0] = 20.0
+    engine.update_feed(live_feed(clock="0:10", round_k=3))
+    engine.tick()
+    assert engine.decisions[0]["action"] == "paper"
+
+
+def test_a_falling_price_is_not_bought_mid_fight(tmp_path):
+    engine, exchange = in_fight_engine(tmp_path, live_price_model(), NO_WATCH)
+    one_contract(exchange)
+    engine.update_feed(feed())
+    engine.start()
+    # Forty seconds ago this fighter cost 62 cents. Now 50: the market saw something.
+    engine.tape.add("WIN-0", time.monotonic() - 40, D("0.62"), D("0.39"))
+    engine.update_feed(live_feed(clock="0:30", round_k=3))
+    engine.tick()
+    assert "falling fast" in engine.decisions[0]["reason"]
+    assert not engine.ledger.orders(engine.session_id)
+
+
+def test_live_buys_are_spaced_and_bounded_per_round(tmp_path):
+    engine, exchange = in_fight_engine(tmp_path, live_price_model(), NO_WATCH)
+    one_contract(exchange)
+    engine.update_feed(feed())
+    engine.start()
+    engine.update_feed(live_feed(clock="0:30", round_k=3))
+    engine.tick()
+    engine.tick()
+    assert len(engine.ledger.orders(engine.session_id)) == 1
+    assert "Waiting" in engine.decisions[0]["reason"]
+    for _ in range(engine.policy.max_live_attempts + 3):
+        engine.last_attempt.clear()
+        engine.tick()
+    assert len(engine.ledger.orders(engine.session_id)) == engine.policy.max_live_attempts
+
+
+def test_the_three_round_slope_sharpens_the_number_and_keeps_corner_symmetry(tmp_path):
+    raw = toy_model()
+    sharp = InplayModel(raw.scale, raw.coef, raw.meta, slopes={3: 1.3})
+    ahead, behind = stats(sig_l=25), stats(sig_l=5)
+    assert sharp.predict_progress(ahead, behind, 0.5, 1, 3) > raw.predict_progress(ahead, behind, 0.5, 1, 3)
+    assert sharp.predict_progress(behind, ahead, 0.5, 1, 3) < raw.predict_progress(behind, ahead, 0.5, 1, 3)
+    assert (sharp.predict_progress(ahead, behind, 0.5, 1, 3)
+            + sharp.predict_progress(behind, ahead, 0.5, 1, 3)) == pytest.approx(1.0, abs=1e-12)
+    # Five-round fights have no slope, so they are untouched.
+    assert sharp.predict_progress(ahead, behind, 0.5, 1, 5) == raw.predict_progress(ahead, behind, 0.5, 1, 5)
+    sharp.save(tmp_path / "sharp.json")
+    assert InplayModel.load(tmp_path / "sharp.json").slopes == {3: 1.3}
+    raw.save(tmp_path / "raw.json")
+    assert InplayModel.load(tmp_path / "raw.json").slopes == {}

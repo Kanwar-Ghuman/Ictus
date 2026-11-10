@@ -1,0 +1,118 @@
+date: '2026-11-14'
+event: 'UFC 334: Gane vs. Hokit'
+fights:
+- fighter1: Ciryl Gane
+  fighter2: Josh Hokit
+  weight_class: Heavyweight
+  title_fight: true
+  rounds: 5
+  section: Main card
+  odds:
+  - 1.44
+  - 2.76
+- fighter1: Kayla Harrison
+  fighter2: Amanda Nunes
+  weight_class: Women's Bantamweight
+  title_fight: true
+  rounds: 5
+  section: Main card
+  odds:
+  - 1.515
+  - 2.605
+- fighter1: Caio Borralho
+  fighter2: Yousri Belgaroui
+  weight_class: Middleweight
+  title_fight: false
+  rounds: 3
+  section: Main card
+  odds:
+  - 1.61
+  - 2.34
+- fighter1: Uroš Medić
+  fighter2: Kevin Holland
+  weight_class: Welterweight
+  title_fight: false
+  rounds: 3
+  section: Main card
+  odds:
+  - 1.67
+  - 2.25
+- fighter1: Bilal Hasan
+  fighter2: Luis Gurule
+  weight_class: Flyweight
+  title_fight: false
+  rounds: 3
+  section: Main card
+  odds:
+  - 1.095
+  - 7.435
+- fighter1: Stephen Thompson
+  fighter2: Charles Radtke
+  weight_class: Welterweight
+  title_fight: false
+  rounds: 3
+  section: Preliminary card
+  odds: null
+- fighter1: Drew Dober
+  fighter2: Chris Duncan
+  weight_class: Lightweight
+  title_fight: false
+  rounds: 3
+  section: Preliminary card
+  odds:
+  - 2.35
+  - 1.615
+- fighter1: Jim Miller
+  fighter2: Terrance McKinney
+  weight_class: Lightweight
+  title_fight: false
+  rounds: 3
+  section: Preliminary card
+  odds:
+  - 2.715
+  - 1.485
+- fighter1: Donte Johnson
+  fighter2: César Almeida
+  weight_class: Middleweight
+  title_fight: false
+  rounds: 3
+  section: Preliminary card
+  odds:
+  - 1.57
+  - 2.44
+- fighter1: Jared Gordon
+  fighter2: Melquizael Costa
+  weight_class: Lightweight
+  title_fight: false
+  rounds: 3
+  section: Early preliminary card
+  odds:
+  - 3.93
+  - 1.27
+- fighter1: Macy Chiasson
+  fighter2: Beatriz Mesquita
+  weight_class: Women's Bantamweight
+  title_fight: false
+  rounds: 3
+  section: Early preliminary card
+  odds:
+  - 3.075
+  - 1.385
+- fighter1: Evan Elder
+  fighter2: Samuel Sanches
+  weight_class: Lightweight
+  title_fight: false
+  rounds: 3
+  section: Early preliminary card
+  odds:
+  - 2.0
+  - 1.83
+- fighter1: Juan Díaz
+  fighter2: Alateng Heili
+  weight_class: Bantamweight
+  title_fight: false
+  rounds: 3
+  section: Announced
+  odds:
+  - 1.33
+  - 3.45

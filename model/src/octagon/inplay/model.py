@@ -6,15 +6,20 @@ differences, and those times the elapsed fraction k / scheduled rounds).
 Swapping corners therefore negates the logit exactly: the model cannot learn
 ufcstats' winner-first listing order, and P(f1) + P(f2) = 1 by construction.
 
-Trained on vig-free closing lines as the prior. Live, the prior is the Kalshi
-price just before the bout started, or the skill model's p_skill fallback.
+Trained on vig-free closing lines as the prior. Live, the prior is the bot's
+pre-fight pick: the sportsbook line nudged by the skill model.
+
+Three-round fights get a confidence correction (``slopes``). The raw logit is
+too timid there: when it gives the trailing fighter 25%, that fighter wins
+about 20% of the time, in both the 2022–2023 and the 2024+ eras. Multiplying
+the logit by one fitted slope fixes that and keeps the corner symmetry.
 """
 
 from __future__ import annotations
 
 import json
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
@@ -59,15 +64,21 @@ class InplayModel:
     scale: dict[str, float]
     coef: dict[str, float]
     meta: dict
+    # Scheduled rounds -> multiplier on the logit. A missing length means 1.0.
+    slopes: dict[int, float] = field(default_factory=dict)
 
-    def logit_f1(self, x: pd.DataFrame) -> np.ndarray:
+    def logit_f1(self, x: pd.DataFrame, scheduled=None) -> np.ndarray:
+        """The model's logit. Pass ``scheduled`` rounds to apply the slopes."""
         z = np.zeros(len(x))
         for name in FEATURES:
             z += x[name].to_numpy(dtype=float) / self.scale[name] * self.coef[name]
-        return z
+        if scheduled is None or not self.slopes:
+            return z
+        lengths = np.broadcast_to(np.asarray(scheduled), z.shape)
+        return z * np.array([self.slopes.get(int(n), 1.0) for n in lengths])
 
-    def predict(self, x: pd.DataFrame) -> np.ndarray:
-        return 1 / (1 + np.exp(-self.logit_f1(x)))
+    def predict(self, x: pd.DataFrame, scheduled=None) -> np.ndarray:
+        return 1 / (1 + np.exp(-self.logit_f1(x, scheduled)))
 
     def predict_one(self, f1: dict, f2: dict, prior: float, round_k: int, scheduled: int) -> float:
         if isinstance(round_k, bool) or not isinstance(round_k, int):
@@ -89,7 +100,7 @@ class InplayModel:
                 or scheduled not in (3, 5)):
             raise ValueError("In-play inputs out of the trained range")
         x = feature_frame(pd.DataFrame([f1]), pd.DataFrame([f2]), [prior], [elapsed], [scheduled])
-        p = float(self.predict(x)[0])
+        p = float(self.predict(x, [scheduled])[0])
         if not math.isfinite(p):
             raise ValueError("Non-finite in-play probability")
         return p
@@ -97,7 +108,9 @@ class InplayModel:
     def save(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps({"features": FEATURES, "scale": self.scale,
-                                    "coef": self.coef, "meta": self.meta}, indent=2))
+                                    "coef": self.coef, "meta": self.meta,
+                                    "slopes": {str(k): v for k, v in self.slopes.items()}},
+                                   indent=2))
 
     @classmethod
     def load(cls, path: Path) -> InplayModel:
@@ -105,7 +118,8 @@ class InplayModel:
         if raw.get("features") != FEATURES:
             raise ValueError("In-play artifact features do not match this code")
         return cls(scale={k: float(v) for k, v in raw["scale"].items()},
-                   coef={k: float(v) for k, v in raw["coef"].items()}, meta=raw.get("meta", {}))
+                   coef={k: float(v) for k, v in raw["coef"].items()}, meta=raw.get("meta", {}),
+                   slopes={int(k): float(v) for k, v in raw.get("slopes", {}).items()})
 
 
 def fit(rows: pd.DataFrame, prior_column: str, C: float) -> InplayModel:

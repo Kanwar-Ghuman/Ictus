@@ -9,27 +9,48 @@ The existing evidence says the opposite of "loosen the bot."
 
 ## What the code does now
 
-Shipped with the plan, without a retrain. The fight database is not in this
-tree, so cardio slope, the opponent graph, and a refit of the in-play ratios
-are still waiting on `build-features` and a walk-forward.
+Updated November 9, 2026. The plan below is kept as written on November 6;
+this section records which parts have been built and which gates are still open.
 
-- `quality_win_rate` is elite wins over elite fights, and only once there are
-  two of them. `quality_n` is the count. The saved artifact, if you have one
-  locally, was fit on the old column. Rebuild and retrain before treating a
-  new feature table as the model the bot loads. Do not promote it unless the
-  validation stack log loss improves or stays inside 0.002.
-- `python -m octagon.trading.scorecard JOURNAL --settlements FILE` prints mean
-  closing-line value in cents, settlement ROI, and an event-block interval.
-  The close is the last pre-fight Kalshi mid in `observations.jsonl`.
-- Pre-fight orders use the pure stack, `a=1.00` and `b=0.29`, and abstain when
-  the bout has no `p_market`. `edge_of` applies `p + d·(0.5−p)`. `d` stays 0
-  until `--draw-rate` is set from the KXUFCFIGHT rules.
-- Mid-round orders are refused. Break orders are unchanged.
-- `--venue-lag` requires a same-time `p_book` and a Kalshi ask that lags it by
-  the fee, half the spread, and 2¢. The flag is off until a scorecard shows
-  pre-fight closing-line value at or above zero.
-- Sizing is the old policy: 40% bout cap, equal slices, one-contract floor.
-  That waits on the closing-line gate. Do not lower the 3¢ edge to get more bets.
+Built:
+
+- **Phase 0, measurement.** `python -m octagon.trading.scorecard JOURNAL
+  --settlements FILE` prints mean closing-line value in cents, settlement ROI,
+  and an event-block interval. The close is the last pre-fight Kalshi mid, now
+  recorded in every session and not only with in-fight trading on. The
+  dashboard shows settled profit, and fight results are kept in the ledger.
+- **Phase 1, the traded probability.** Orders bet the pure stack, `a=1.00` and
+  `b=0.29`, against a line read at trade time: ESPN's live moneyline, then the
+  card's saved odds. No line means no pre-fight order. `edge_of` applies
+  `p + d·(0.5−p)` with `d = 0.018`, measured as 70 draws and no-contests in
+  3,941 UFC fights from 2019 on.
+- **Flaw 2, `quality_win_rate`.** Elite wins over elite fights, once there are
+  two of them, with `quality_n` as the count.
+- **Flaw 4, in-play calibration.** The in-play logit gets a slope for
+  three-round fights, fit on 2022–2023 (1.315). On the 2024+ three-round rows
+  the calibration error went from 0.037 to 0.025 and the log loss from 0.5132
+  to 0.5114. The prior is the pre-fight stack.
+- **Trade guards**, from the November 7 ledger: a 20¢ price floor, one side per
+  fight, no buying a price that fell 5¢ in 90 seconds, a 15-second watching
+  period mid-round, and at most 3 mid-round buys a round, 30 seconds apart.
+  See `trading/guards.py` and [kalshi_trading.md](kalshi_trading.md).
+
+Different from the plan, on purpose:
+
+- **Mid-round orders stay on.** Phase 4 says to delete them until a mid-round
+  training set exists. They are kept behind the guards above instead. This is
+  the owner's call. The model is still trained only on end-of-round totals, so
+  a mid-round number is outside what it was fit on.
+- **Sizing is unchanged.** 40% bout cap, equal slices, one-contract floor.
+  Phase 3 (top two fights, 15% cap) waits on its gate.
+
+Still open:
+
+- The Phase 1 gate (mean pre-fight closing-line value at or above zero on
+  recorded events) has not been run. There is one real-money night.
+- `--venue-lag` (Phase 2) exists and is off. It now reads the same live line.
+- Phase 4's ratio features, the sell rule, and everything in Phase 5.
+- Flaws 3 and 6: the compositional rate triples, and a priced post-2023 slice.
 
 ## Verdict
 

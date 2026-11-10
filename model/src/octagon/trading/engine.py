@@ -8,6 +8,10 @@ current exchange metadata and executable depth. A ledger reservation is durable
 before an order can leave the process. Budget is spread across the card: each
 fight still to be decided gets a slice of the money left, scaled by edge
 strength. Missed or partly filled orders are retried (bounded) while the edge lasts.
+
+The probability comes from ``signal`` (sportsbook line plus a skill nudge) and
+every order has to pass ``guards`` (no longshots, no falling prices, never both
+sides of a fight).
 """
 
 from __future__ import annotations
@@ -18,7 +22,6 @@ import json
 import re
 import threading
 import time
-import unicodedata
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -26,33 +29,34 @@ from pathlib import Path
 from typing import Any
 
 from octagon.inplay.live import BREAK_STATUS, fight_progress, held_without_threat
+from octagon.trading.guards import (
+    OTHER_SIDE, PriceTape, falling_price_reason, held_side, longshot_reason,
+)
 from octagon.trading.kalshi import KalshiClient, KalshiOrderBook, KalshiTransportError
 from octagon.trading.ledger import Ledger
+from octagon.trading.names import identifies, orient, rules_name_fight
+from octagon.trading.pnl import bout_result, card_winner, corner_names, session_results
 from octagon.trading.risk import (
     RiskPolicy, bout_allowance, decimal, edge_of, money, size_candidate, taker_fee,
 )
-from octagon.trading.signal import lag_block_reason
+from octagon.trading.signal import lag_block_reason, moneyline_probability, order_probability
 
 READINESS_REASONS = [
     "No independently verified Kalshi trading edge: live orders can lose the whole budget.",
-    "Pre-fight orders use the frozen card pick and abstain when the card has no vig-free line.",
-    "In-fight orders reprice from the live clock. A fighter already held under 50 cents is not flipped.",
+    "Orders bet the sportsbook line nudged by the skill model, and abstain with no line.",
+    "No longshots under the price floor, no falling prices mid-fight, never both sides of a fight.",
     "Historical sportsbook backtests do not establish profitable Kalshi execution.",
     "Paper fills are simulations; demo fills use Kalshi's separate test environment.",
 ]
 IDENTIFIER = re.compile(r"^[A-Za-z0-9_-]{1,160}$")
+# How often the worker looks again: quickly while a fight can be live.
 IDLE_DECISION_SECONDS = 2.0
-# A contract bought under 50 cents is the side we keep.
-HIGH_ODDS_PRICE = Decimal("0.50")
-
-
-def normalized_name(name: str) -> str:
-    # A hyphen is a space, so "Cortes-Acosta" and "Cortes Acosta" are one fighter.
-    folded = unicodedata.normalize("NFKD", name).casefold().replace("-", " ")
-    return " ".join("".join(
-        c for c in folded
-        if not unicodedata.combining(c) and (c.isalnum() or c.isspace())
-    ).split())
+LIVE_DECISION_SECONDS = 1.0
+# Kalshi's start time is in UTC and is sometimes a placeholder a day early,
+# while the card carries the local date. Two days covers both; a rematch never
+# happens that soon.
+MARKET_DAYS = 2
+MAX_MARKETS = 30
 
 
 def timestamp(value: Any) -> float:
@@ -138,9 +142,14 @@ class TradingEngine:
         self.prefight: dict[str, dict] = self._load_prefight()
         self.prefight_checked: dict[str, float] = {}
         self.break_seen: dict[tuple[str, int], float] = {}
+        # The last pre-fight pick per market: the in-play model's prior.
+        self.picks: dict[str, tuple[Decimal, str]] = {}
+        # Latest live stats for the bout being priced, for the control check.
+        self.live_stats: tuple[dict, dict] | None = None
         # Monotonic time of the last order attempt per attempt family.
         self.last_attempt: dict[str, float] = {}
         self.policy = policy or RiskPolicy()
+        self.tape = PriceTape(self.policy.price_window_seconds)
         self.record = record or (lambda kind, data: None)
         self.running = threading.Event()
         self.lock = threading.RLock()
@@ -157,16 +166,25 @@ class TradingEngine:
         self.market_received: float | None = None
         self.market_stream_required = False
         self.decisions: list[dict] = []
-        self.message = "Paused. Configure a budget and explicitly confirm each winner market."
+        self.message = "Ready. Enter an amount on the dashboard to start."
         self.session_id: str | None = None
         self.config: dict | None = None
+        # ESPN results for this session's bouts, kept in the ledger for the tally.
+        self.results: dict[str, dict] = {}
         old = self.ledger.latest(mode)
         if old:
             self.session_id = old["id"]
             self.config = json.loads(old["config"])
+            self.results = self.ledger.results(self.session_id)
             self.message = "Recovered journal. Paused after restart; reconcile before starting."
 
-    def configure(self, request: dict, card: dict) -> dict:
+    def configure(self, request: dict, card: dict, *, skip_invalid: bool = False) -> dict:
+        """Save an event's budget and markets. The session stays stopped.
+
+        ``skip_invalid`` leaves out a fight whose market cannot be validated
+        right now (the one-click start uses it, and ``extend`` picks the fight
+        up later). Without it any invalid fight rejects the whole request.
+        """
         with self.lock:
             if self.running.is_set():
                 raise ValueError("Stop the session before changing its budget or mappings")
@@ -181,50 +199,18 @@ class TradingEngine:
             if self.max_budget is not None and budget > self.max_budget:
                 raise ValueError(f"Budget exceeds this service's hard cap of ${self.max_budget}")
             mappings = request.get("mappings")
-            if not isinstance(mappings, list) or not 1 <= len(mappings) <= 30:
-                raise ValueError("Configure between 1 and 30 individual winner markets")
-            by_pair = {(b["f1"], b["f2"]): b for b in card["bouts"]}
-            mapped, seen_tickers, seen_bouts, seen_pairs = [], set(), set(), set()
+            if not isinstance(mappings, list) or not 1 <= len(mappings) <= MAX_MARKETS:
+                raise ValueError(f"Configure between 1 and {MAX_MARKETS} individual winner markets")
+            mapped, problem = [], None
             for mapping in mappings:
-                if mapping.get("confirmed") is not True:
-                    raise ValueError("Confirm each market's winner, event and settlement rules")
-                f1, f2 = mapping.get("f1"), mapping.get("f2")
-                bout = by_pair.get((f1, f2))
-                if bout is None or not f1 or not f2 or f1 == f2:
-                    raise ValueError("Mapped fighters must exactly match the selected model card")
-                if mapping.get("yes_fighter") not in (f1, f2):
-                    raise ValueError("YES fighter must be one of the two fighters")
-                ticker, bout_id = mapping.get("ticker", ""), mapping.get("bout_id", "")
-                if not IDENTIFIER.fullmatch(ticker) or not IDENTIFIER.fullmatch(bout_id):
-                    raise ValueError("Invalid Kalshi ticker or ESPN bout ID")
-                if ticker in seen_tickers or bout_id in seen_bouts or (f1, f2) in seen_pairs:
-                    raise ValueError("Each fight and market can be mapped only once")
-                seen_tickers.add(ticker)
-                seen_bouts.add(bout_id)
-                seen_pairs.add((f1, f2))
-                p_skill = _probability(bout.get("p_skill"), "skill-model")
-                p_market = bout.get("p_market")
-                market_text = None
-                if p_market is not None:
-                    market_text = str(_probability(p_market, "market"))
-                raw_pick = bout.get("p_f1_wins")
-                order_p = p_skill if raw_pick is None else _probability(raw_pick, "initial-pick")
-                layer = "initial"
-                p_book = bout.get("p_book")
-                book_text = None if p_book is None else str(_probability(p_book, "sportsbook"))
-                market = self.client.get_market(ticker)
-                self._validate_identity(market, mapping)
-                mapped.append({key: mapping[key] for key in (
-                    "ticker", "bout_id", "f1", "f2", "yes_fighter", "confirmed"
-                )} | {"probability_f1": str(order_p),
-                      "p_skill": str(p_skill),
-                      "p_market": market_text,
-                      "p_book": book_text,
-                      "probability_layer": layer,
-                      "f1_ufc_fights": bout.get("f1_ufc_fights"),
-                      "scheduled_rounds": bout.get("scheduled_rounds"),
-                      "f2_ufc_fights": bout.get("f2_ufc_fights"),
-                      "market_identity": self._market_identity(market)})
+                try:
+                    mapped.append(self._mapped(mapping, card, mapped))
+                except (ValueError, RuntimeError) as exc:
+                    if not skip_invalid:
+                        raise
+                    problem = exc
+            if not mapped:
+                raise problem or ValueError("No fights can be traded right now.")
             config = {
                 "card_slug": request["card_slug"], "espn_event_id": request["espn_event_id"],
                 "budget_dollars": str(budget), "card_date": str(card["date"]),
@@ -236,9 +222,72 @@ class TradingEngine:
             self.session_id = self.ledger.configure(config, self.mode)
             self.config = config
             self.decisions = []
+            self.picks = {}
+            self.results = self.ledger.results(self.session_id)
             self.message = "Configured and paused. Budget is a spending ceiling, not a target."
             self.record("configuration", config)
             return self.status()
+
+    def extend(self, mappings: list[dict], card: dict) -> list[str]:
+        """Add fights to the current session without stopping it. Returns their tickers.
+
+        For a market Kalshi lists after Start. The budget, the existing fights
+        and every order are untouched, and each new fight passes the same
+        checks as at Start. One that fails is skipped and tried again later.
+        """
+        with self.lock:
+            if (not self.config or not self.session_id
+                    or card.get("slug") != self.config["card_slug"]):
+                return []
+            current = self.config["mappings"]
+            added: list[dict] = []
+            for mapping in mappings:
+                if len(current) + len(added) >= MAX_MARKETS:
+                    break
+                try:
+                    added.append(self._mapped(mapping, card, current + added))
+                except (ValueError, RuntimeError):
+                    continue
+            if not added:
+                return []
+            config = {**self.config, "mappings": current + added}
+            self.ledger.configure(config, self.mode)
+            self.config = config
+            tickers = [m["ticker"] for m in added]
+            self.record("session_extended", {"tickers": tickers})
+            return tickers
+
+    def _mapped(self, mapping: dict, card: dict, taken: list[dict]) -> dict:
+        """One requested fight, checked against the card and its Kalshi market."""
+        if mapping.get("confirmed") is not True:
+            raise ValueError("Confirm each market's winner, event and settlement rules")
+        f1, f2 = mapping.get("f1"), mapping.get("f2")
+        bout = next((b for b in card["bouts"] if (b["f1"], b["f2"]) == (f1, f2)), None)
+        if bout is None or not f1 or not f2 or f1 == f2:
+            raise ValueError("Mapped fighters must exactly match the selected model card")
+        if mapping.get("yes_fighter") not in (f1, f2):
+            raise ValueError("YES fighter must be one of the two fighters")
+        ticker, bout_id = mapping.get("ticker", ""), mapping.get("bout_id", "")
+        if not IDENTIFIER.fullmatch(ticker) or not IDENTIFIER.fullmatch(bout_id):
+            raise ValueError("Invalid Kalshi ticker or ESPN bout ID")
+        if any(ticker == m["ticker"] or bout_id == m["bout_id"] or (f1, f2) == (m["f1"], m["f2"])
+               for m in taken):
+            raise ValueError("Each fight and market can be mapped only once")
+        p_skill = _probability(bout.get("p_skill"), "skill-model")
+        card_line = bout.get("p_market")
+        if card_line is not None:
+            card_line = str(_probability(card_line, "market"))
+        market = self.client.get_market(ticker)
+        self._validate_identity(market, mapping)
+        return {key: mapping[key] for key in (
+            "ticker", "bout_id", "f1", "f2", "yes_fighter", "confirmed"
+        )} | {"p_skill": str(p_skill),
+              # The card's saved line. The live ESPN line wins when present.
+              "p_market": card_line,
+              "f1_ufc_fights": bout.get("f1_ufc_fights"),
+              "scheduled_rounds": bout.get("scheduled_rounds"),
+              "f2_ufc_fights": bout.get("f2_ufc_fights"),
+              "market_identity": self._market_identity(market)}
 
     @staticmethod
     def _market_identity(market: dict) -> str:
@@ -254,14 +303,13 @@ class TradingEngine:
             raise ValueError("Expected the exact binary winner market")
         if market.get("mve_collection_ticker") or market.get("mve_selected_legs"):
             raise ValueError("Combo markets require joint probabilities and are unsupported")
-        from octagon.trading.autoplan import fighter_in_rules, same_name
-
-        if not same_name(str(market.get("yes_sub_title", "")), mapping["yes_fighter"]):
-            raise ValueError("Market YES label must exactly identify the selected fighter")
+        opponent = mapping["f2"] if mapping["yes_fighter"] == mapping["f1"] else mapping["f1"]
+        if not identifies(str(market.get("yes_sub_title", "")), mapping["yes_fighter"], opponent):
+            raise ValueError("Market YES label does not identify the selected fighter")
         if not market.get("rules_primary") or not market.get("event_ticker"):
             raise ValueError("Market settlement rules and event identity are required")
-        if any(not fighter_in_rules(mapping[key], market["rules_primary"]) for key in ("f1", "f2")):
-            raise ValueError("Market rules must identify both exact fighters in this bout")
+        if not rules_name_fight(market["rules_primary"], mapping["f1"], mapping["f2"]):
+            raise ValueError("Market rules must name both fighters in this bout")
 
     def update_feed(self, message: dict):
         with self.feed_lock:
@@ -272,6 +320,7 @@ class TradingEngine:
             # source packets regress to 'scheduled'.
             if self.config and self.session_id and isinstance(message, dict):
                 if (message.get("meta") or {}).get("event_id") == self.config["espn_event_id"]:
+                    self._record_results(message.get("data") or [])
                     for bout in message.get("data") or []:
                         if not isinstance(bout, dict) or bout.get("status") == "scheduled":
                             continue
@@ -284,6 +333,21 @@ class TradingEngine:
                         self.ledger.block_bout(self.session_id, str(bout.get("bout_id")),
                                                "Bout observed started or unavailable")
         self.record("fight_feed", message)
+
+    def _record_results(self, bouts: list):
+        """Keep each mapped bout's ESPN result, under the card's fighter names."""
+        mapped = {m["bout_id"]: m for m in self.config["mappings"]}
+        for bout in bouts:
+            mapping = mapped.get(str(bout.get("bout_id"))) if isinstance(bout, dict) else None
+            if mapping is None or bout.get("status") != "final":
+                continue
+            f1_is_a = orient(mapping["f1"], mapping["f2"], *corner_names(bout))
+            if f1_is_a is None:
+                continue
+            result = bout_result(bout, card_winner(bout, mapping["f1"], mapping["f2"], f1_is_a))
+            if result and self.results.get(mapping["bout_id"]) != result:
+                self.ledger.record_result(self.session_id, mapping["bout_id"], result)
+                self.results[mapping["bout_id"]] = result
 
     def disconnect_feed(self):
         with self.feed_lock:
@@ -425,10 +489,7 @@ class TradingEngine:
         if len(bouts) != 1:
             return None, "Exact ESPN bout identity not found"
         bout = bouts[0]
-        actual = {normalized_name(str((bout.get(c) or {}).get("name", "")))
-                  for c in ("fighter_a", "fighter_b")}
-        expected = {normalized_name(mapping["f1"]), normalized_name(mapping["f2"])}
-        if actual != expected:
+        if orient(mapping["f1"], mapping["f2"], *corner_names(bout)) is None:
             return None, "ESPN fighter identities do not match the model card"
         return bout, None
 
@@ -444,8 +505,8 @@ class TradingEngine:
         if reason:
             raise ValueError(reason)
         elapsed, stats_1, stats_2, phase = fight_progress(
-            bout, mapping["f1"], mapping["f2"], normalized_name)
-        self._live_stats = (stats_1, stats_2)
+            bout, mapping["f1"], mapping["f2"], orient)
+        self.live_stats = (stats_1, stats_2)
         scheduled = mapping.get("scheduled_rounds")
         if scheduled not in (3, 5):
             raise ValueError("Scheduled rounds unknown; in-fight trading needs 3 or 5")
@@ -463,9 +524,7 @@ class TradingEngine:
             key = f'{mapping["bout_id"]}:l{round_k}'
         else:
             raise ValueError("Unknown fight phase")
-        if mapping.get("probability_f1") is None:
-            raise ValueError("No initial pick for the in-play model")
-        p_prior, source = decimal(mapping["probability_f1"]), "initial pick"
+        p_prior, source = self._prior(mapping)
         card_reason = self._card_reason(mapping, now, need_history=True)
         if card_reason:
             raise ValueError(card_reason)
@@ -475,10 +534,47 @@ class TradingEngine:
         p_f1 = min(max(p_f1, 0.01), 0.99)
         return key, decimal(f"{p_f1:.4f}"), source, round_k, phase
 
-    def _capture_prefight(self, mapping: dict, status: str | None):
-        """Remember the last two-sided Kalshi mid while the bout is still scheduled."""
-        if self.inplay is None or status != "scheduled":
+    @staticmethod
+    def _skill(mapping: dict) -> Decimal:
+        # Sessions saved before the line-based signal stored one frozen number.
+        value = mapping.get("p_skill") or mapping.get("probability_f1")
+        if value is None:
+            raise ValueError("No model probability for this fight")
+        return decimal(value)
+
+    def _line(self, mapping: dict) -> tuple[Decimal | None, Decimal | None]:
+        """Vig-free P(f1 wins): (ESPN's live moneyline, the card's saved line)."""
+        card = decimal(mapping["p_market"]) if mapping.get("p_market") else None
+        with self.feed_lock:
+            data = (self.feed or {}).get("data") if isinstance(self.feed, dict) else None
+            bout = copy.deepcopy(next((b for b in data or [] if isinstance(b, dict)
+                                       and b.get("bout_id") == mapping["bout_id"]), None))
+        f1_is_a = orient(mapping["f1"], mapping["f2"], *corner_names(bout)) if bout else None
+        if f1_is_a is None:
+            return None, card
+        odds = [(bout.get(key) or {}).get("odds") for key in ("fighter_a", "fighter_b")]
+        return moneyline_probability(*(odds if f1_is_a else reversed(odds))), card
+
+    def _pick(self, mapping: dict) -> tuple[Decimal, str] | None:
+        """(P(f1 wins), line source) the bot would bet right now, or None with no line."""
+        return order_probability(self._skill(mapping), *self._line(mapping))
+
+    def _prior(self, mapping: dict) -> tuple[Decimal, str]:
+        """Where the in-play model starts: the last pre-fight pick."""
+        pick = self.picks.get(mapping["ticker"]) or self._pick(mapping)
+        return pick if pick is not None else (self._skill(mapping), "skill model")
+
+    def _remember_prefight(self, mapping: dict, status: str | None):
+        """While a bout is still scheduled, keep its pick and its last Kalshi mid.
+
+        The pick is the in-play prior. The mid is the closing price the
+        scorecard measures fills against.
+        """
+        if status != "scheduled":
             return
+        pick = self._pick(mapping)
+        if pick is not None:
+            self.picks[mapping["ticker"]] = pick
         ticker, now = mapping["ticker"], time.monotonic()
         last = self.prefight_checked.get(ticker)
         if last is not None and now - last < self.policy.prefight_capture_seconds:
@@ -497,6 +593,18 @@ class TradingEngine:
         self._save_prefight()
         self.record("prefight_price", {"ticker": ticker, "p_f1": str(p_f1),
                                        "yes_bid": str(yes_bid), "yes_ask": str(yes_ask)})
+
+    def _sample_price(self, mapping: dict):
+        """Keep a live bout's price history current even when no order is due."""
+        ticker, now = mapping["ticker"], time.monotonic()
+        last = self.tape.last_sample(ticker)
+        if last is not None and now - last < self.policy.price_sample_seconds:
+            return
+        try:
+            quotes = rest_quotes(self.client.get_orderbook(ticker))
+        except (ValueError, RuntimeError):
+            return
+        self.tape.add(ticker, now, quotes["yes"][0], quotes["no"][0])
 
     def _load_prefight(self) -> dict[str, dict]:
         if self.prefight_path is None or not self.prefight_path.exists():
@@ -532,7 +640,7 @@ class TradingEngine:
             raise ValueError("Market is closed or too close to closing")
         occurrence = datetime.fromtimestamp(timestamp(market.get("occurrence_datetime")), timezone.utc).date()
         card_date = datetime.fromisoformat(self.config["card_date"]).date()
-        if abs((occurrence - card_date).days) > 1:
+        if abs((occurrence - card_date).days) > MARKET_DAYS:
             raise ValueError("Kalshi occurrence date does not match the model card")
         event = self.client.get_event(market["event_ticker"])
         # Single-fight winner series only. Method, round and combo markets
@@ -586,31 +694,34 @@ class TradingEngine:
                             "action": "skip", "reason": ""}
                 decisions.append(decision)
                 status = self._bout_status(mapping["bout_id"])
-                self._capture_prefight(mapping, status)
+                self._remember_prefight(mapping, status)
                 in_fight = self.inplay is not None and status == "in_progress"
+                mid_round = False
                 try:
                     if in_fight:
+                        self._sample_price(mapping)
                         family, p_f1, source, round_k, phase = self._inplay_inputs(
                             mapping, time.time())
-                        decision.update(phase=(f"live round {round_k}" if phase == "live"
+                        mid_round = phase == "live"
+                        decision.update(phase=(f"live round {round_k}" if mid_round
                                                else f"after round {round_k}"),
                                         prior=source, p_f1=float(p_f1))
                         family, attempt = self._next_attempt(
                             orders, family, kind=phase,
-                            label=(f"during round {round_k}" if phase == "live"
+                            label=(f"during round {round_k}" if mid_round
                                    else f"in the break after round {round_k}"))
                     else:
                         reason = self._feed_reason(mapping, time.time())
                         if reason:
                             raise ValueError(reason)
-                        if mapping.get("p_market") is None:
-                            raise ValueError("No vig-free line; pre-fight orders abstain")
-                        decision.update(phase="pre-fight", layer=mapping.get("probability_layer"))
+                        pick = self._pick(mapping)
+                        if pick is None:
+                            raise ValueError("No sportsbook line; pre-fight orders abstain")
+                        p_f1, source = pick
+                        decision.update(phase="pre-fight", line=source, p_f1=float(p_f1),
+                                        event_id=self.config["espn_event_id"])
                         family, attempt = self._next_attempt(
                             orders, mapping["bout_id"], kind="prefight", label="before the fight")
-                        p_f1 = decimal(mapping["probability_f1"])
-                        decision["p_f1"] = float(p_f1)
-                        decision["event_id"] = self.config["espn_event_id"]
                     market, multiplier = self._market_context(mapping)
                     # Price and depth come from the REST book, even if the socket is down.
                     began = time.monotonic()
@@ -622,65 +733,14 @@ class TradingEngine:
                     if time.monotonic() - began > self.policy.max_book_age_seconds:
                         raise ValueError("Market quote retrieval was too slow")
                     spread = quotes["yes"][0] + quotes["no"][0] - 1
+                    self.tape.add(mapping["ticker"], time.monotonic(),
+                                  quotes["yes"][0], quotes["no"][0])
                     decision["yes_bid"] = str(1 - quotes["no"][0])
                     decision["yes_ask"] = str(quotes["yes"][0])
-                    event = self.ledger.event(self.session_id)
                     p_yes = p_f1 if mapping["yes_fighter"] == mapping["f1"] else 1 - p_f1
-                    book_f1 = decimal(mapping["p_book"]) if mapping.get("p_book") else None
-                    if self.policy.venue_lag and not in_fight and book_f1 is None:
-                        raise ValueError("Venue-lag rule is on and this bout has no sportsbook price")
-                    room = self._budget_room(orders, mapping, in_fight, event)
-                    locked = self._high_odds_side(orders, mapping["ticker"])
-                    candidates, best, lag_reason, stick_reason, held_reason = [], None, None, None, None
-                    for side, probability in (("yes", p_yes), ("no", 1 - p_yes)):
-                        price, depth = quotes[side]
-                        if locked and side != locked:
-                            unit_cost, edge, _kelly = edge_of(
-                                probability, price, multiplier, self.policy)
-                            if best is None or edge > best[1]:
-                                best = (side, edge, probability, unit_cost, Decimal(0))
-                            stick_reason = (
-                                f"Sticking with {self._side_name(mapping, locked)}; "
-                                "that fighter is already held at high odds"
-                            )
-                            continue
-                        if self.policy.venue_lag and not in_fight:
-                            book_side = book_f1 if side == "yes" else 1 - book_f1
-                            if mapping["yes_fighter"] != mapping["f1"]:
-                                book_side = (1 - book_f1) if side == "yes" else book_f1
-                            blocked = lag_block_reason(
-                                probability, book_side, price, spread,
-                                taker_fee(price, 1, multiplier),
-                                min_lag=self.policy.min_venue_lag,
-                                max_gap=self.policy.max_book_gap,
-                            )
-                            if blocked:
-                                lag_reason = blocked
-                                continue
-                        unit_cost, edge, kelly = edge_of(probability, price, multiplier, self.policy)
-                        allowance = bout_allowance(kelly=kelly, policy=self.policy,
-                                                   unit_cost=unit_cost, **room)
-                        if best is None or edge > best[1]:
-                            best = (side, edge, probability, unit_cost, allowance)
-                        candidate = size_candidate(
-                            side=side, probability=probability, price=price, depth=depth,
-                            spread=spread, allowance=allowance,
-                            fee_multiplier=multiplier, policy=self.policy,
-                        )
-                        if candidate and in_fight and (reason := self._held_reason(mapping, side)):
-                            held_reason = reason
-                            continue
-                        if candidate:
-                            candidates.append(candidate)
-                    if not candidates:
-                        if stick_reason and (best is None or best[0] != locked):
-                            raise ValueError(stick_reason)
-                        if held_reason:
-                            raise ValueError(held_reason)
-                        if lag_reason and best is None:
-                            raise ValueError(lag_reason)
-                        raise ValueError(self._no_trade_reason(mapping, spread, *best))
-                    candidate = max(candidates, key=lambda c: c.net_edge)
+                    candidate = self._choose(
+                        mapping, orders, quotes, spread, p_yes, multiplier,
+                        in_fight=in_fight, mid_round=mid_round)
                     if self.mode != "paper":
                         balance = self.client.get_balance()
                         if decimal(balance.get("balance")) / 100 < candidate.reserved_cost:
@@ -741,9 +801,7 @@ class TradingEngine:
     @property
     def decision_interval(self) -> float:
         """How often the worker may look again. Live repricing checks every second."""
-        if self.inplay is not None:
-            return self.policy.live_retry_seconds
-        return IDLE_DECISION_SECONDS
+        return LIVE_DECISION_SECONDS if self.inplay is not None else IDLE_DECISION_SECONDS
 
     def _next_attempt(self, orders: list[dict], base: str, *, kind: str,
                       label: str) -> tuple[str, str]:
@@ -815,40 +873,79 @@ class TradingEngine:
                               Decimal(0)),
         }
 
-    def _held_reason(self, mapping: dict, side: str) -> str | None:
-        """Refuse a fighter who is being controlled and has no finish path."""
-        pair = getattr(self, "_live_stats", None)
-        if not pair:
+    def _choose(self, mapping: dict, orders: list[dict], quotes: dict, spread: Decimal,
+                p_yes: Decimal, multiplier: Decimal, *, in_fight: bool, mid_round: bool):
+        """The order that clears the edge, the guards and the budget, or why none does."""
+        event = self.ledger.event(self.session_id)
+        room = self._budget_room(orders, mapping, in_fight, event)
+        owned = held_side(orders, mapping["ticker"])
+        best, refusal = None, None
+        for side, probability in (("yes", p_yes), ("no", 1 - p_yes)):
+            price, depth = quotes[side]
+            unit_cost, edge, kelly = edge_of(probability, price, multiplier, self.policy)
+            allowance = bout_allowance(kelly=kelly, policy=self.policy,
+                                       unit_cost=unit_cost, **room)
+            if best is None or edge > best[1]:
+                best = (side, edge, probability, unit_cost, allowance)
+            if edge < self.policy.min_net_edge:
+                continue
+            # The two asks sum to at least $1, so at most one side has an edge.
+            refusal = self._guard(mapping, side, probability, price, spread, multiplier,
+                                  owned, in_fight=in_fight, mid_round=mid_round)
+            if refusal:
+                continue
+            candidate = size_candidate(
+                side=side, probability=probability, price=price, depth=depth,
+                spread=spread, allowance=allowance,
+                fee_multiplier=multiplier, policy=self.policy,
+            )
+            if candidate:
+                return candidate
+        raise ValueError(refusal or self._no_trade_reason(mapping, spread, *best))
+
+    def _guard(self, mapping: dict, side: str, probability: Decimal, price: Decimal,
+               spread: Decimal, multiplier: Decimal, owned: str | None, *,
+               in_fight: bool, mid_round: bool) -> str | None:
+        """Why an order with an edge is still refused. See ``guards``."""
+        if owned == OTHER_SIDE[side]:
+            return (f"Sticking with {self._side_name(mapping, owned)}; "
+                    "never both sides of a fight")
+        reason = longshot_reason(price, self.policy)
+        if reason:
+            return reason
+        if not in_fight:
+            return self._lag_reason(mapping, side, probability, price, spread, multiplier)
+        reason = falling_price_reason(self.tape, mapping["ticker"], side, price,
+                                      time.monotonic(), self.policy, mid_round=mid_round)
+        return reason or self._controlled_reason(mapping, side)
+
+    def _lag_reason(self, mapping: dict, side: str, probability: Decimal, price: Decimal,
+                    spread: Decimal, multiplier: Decimal) -> str | None:
+        """Optional rule: only buy when Kalshi also lags the sportsbook."""
+        if not self.policy.venue_lag:
             return None
-        first, second = pair
+        live, card = self._line(mapping)
+        line_f1 = live if live is not None else card
+        if line_f1 is None:
+            return "Venue-lag rule is on and this bout has no sportsbook price"
+        side_is_f1 = (side == "yes") == (mapping["yes_fighter"] == mapping["f1"])
+        return lag_block_reason(
+            probability, line_f1 if side_is_f1 else 1 - line_f1, price, spread,
+            taker_fee(price, 1, multiplier),
+            min_lag=self.policy.min_venue_lag, max_gap=self.policy.max_book_gap,
+        )
+
+    def _controlled_reason(self, mapping: dict, side: str) -> str | None:
+        """Refuse a fighter who is being controlled and has no finish path."""
+        if not self.live_stats:
+            return None
+        first, second = self.live_stats
         mine_is_first = (side == "yes") == (mapping["yes_fighter"] == mapping["f1"])
         mine, theirs = (first, second) if mine_is_first else (second, first)
         if not held_without_threat(mine, theirs):
             return None
         return (f"Staying off {self._side_name(mapping, side)}; "
                 "being controlled with no finishing threat")
-
-    def _high_odds_side(self, orders: list[dict], ticker: str) -> str | None:
-        """The fighter already held under 50 cents, if either side is."""
-        held = {"yes": Decimal(0), "no": Decimal(0)}
-        cheapest = {"yes": None, "no": None}
-        for order in orders:
-            if order.get("ticker") != ticker or order.get("side") not in held:
-                continue
-            if order.get("status") not in {"filled", "demo_filled", "paper_filled"}:
-                continue
-            filled = decimal(order.get("filled_count") or 0)
-            price = decimal(order["price"])
-            if filled <= 0 or price >= HIGH_ODDS_PRICE:
-                continue
-            side = order["side"]
-            held[side] += filled
-            if cheapest[side] is None or price < cheapest[side]:
-                cheapest[side] = price
-        sides = [side for side, count in held.items() if count > 0]
-        if not sides:
-            return None
-        return max(sides, key=lambda side: (held[side], -cheapest[side]))
 
     @staticmethod
     def _side_name(mapping: dict, side: str) -> str:
@@ -1013,6 +1110,7 @@ class TradingEngine:
                                           self.policy.max_source_age_seconds)
         else:
             fresh = False
+        orders = self.ledger.orders(self.session_id) if self.session_id else []
         return {"mode": self.mode, "running": self.running.is_set(),
                 "config_version": self.config_version(),
                 "feed_connected": bool(fresh), "market_connected": (
@@ -1023,5 +1121,7 @@ class TradingEngine:
                 "in_fight_enabled": self.inplay is not None,
                 "max_budget_dollars": str(self.max_budget) if self.max_budget is not None else None,
                 "decisions": list(self.decisions),
-                "orders": self.ledger.orders(self.session_id) if self.session_id else [],
+                "orders": orders,
+                "results": (session_results(orders, self.config["mappings"], self.results)
+                            if self.config else None),
                 "feed": visible_feed, "message": self.message}
