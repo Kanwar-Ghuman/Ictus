@@ -103,6 +103,13 @@ export type PlanFight = {
   winner: string | null;
 };
 
+/** The pick table shipped with the site. The bot is not required. */
+export type SavedCard = {
+  event: string | null;
+  date: string | null;
+  fights: PlanFight[];
+};
+
 export type Plan = {
   event: { name: string | null; status: string | null };
   card: null | { slug: string; event: string; date: string };

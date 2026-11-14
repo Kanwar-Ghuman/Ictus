@@ -7,7 +7,7 @@ const METHODS: Record<string, string> = { "KO/TKO": "KO/TKO", SUB: "Submission",
  * The model's own call for every fight: winner, method, and round.
  * This is not what the bot bets. Betting is the section below.
  */
-export function ModelPicks({ fights }: { fights: PlanFight[] }) {
+export function ModelPicks({ fights, note }: { fights: PlanFight[]; note?: string }) {
   const picked = fights.filter((fight) => fight.pick);
   if (picked.length === 0) return null;
   const finished = picked.filter((fight) => fight.winner);
@@ -44,8 +44,7 @@ export function ModelPicks({ fights }: { fights: PlanFight[] }) {
           </div>
         </div>
         <p className="note">
-          These are the model&apos;s predictions on their own. The bot bets a different number, the
-          sportsbook odds nudged by the model, shown under Betting.
+          {note ?? "These are the model's predictions on their own. The bot bets a different number, the sportsbook odds nudged by the model, shown under Betting."}
         </p>
       </div>
     </section>

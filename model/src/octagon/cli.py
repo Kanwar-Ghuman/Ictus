@@ -300,8 +300,8 @@ def cmd_evaluate(args: argparse.Namespace, cfg: dict) -> None:
     print(f"\nWrote {out}")
 
 
-def cmd_fetch_card(args: argparse.Namespace, cfg: dict) -> None:
-    """Build a card YAML for the next UFC event from Wikipedia."""
+def cmd_fetch_card(args: argparse.Namespace, cfg: dict) -> Path:
+    """Build a card YAML for the next UFC event from Wikipedia. Returns its path."""
     import yaml
 
     from octagon.scraping.wikipedia import card_yaml, fight_card, next_event
@@ -335,6 +335,7 @@ def cmd_fetch_card(args: argparse.Namespace, cfg: dict) -> None:
     print("Next:")
     print(f"  uv run python -m octagon fetch-media --card {out}")
     print(f"  uv run python -m octagon predict --card {out}")
+    return out
 
 
 def raise_missing_date():
@@ -506,6 +507,42 @@ def cmd_day_before(args: argparse.Namespace, cfg: dict) -> None:
     cmd_predict(args, cfg)
 
 
+def cmd_weekend(args: argparse.Namespace, cfg: dict) -> None:
+    """Everything to do before a card, in the order that keeps it consistent.
+
+    Run it the day before, after the weigh-ins: opponents can change until
+    then. The card and its regional records come first because they change
+    the feature table, and the model has to be refit on that same table
+    before it will predict.
+    """
+    def step(number: int, title: str) -> None:
+        print(f"\n=== {number}/6 {title} ===")
+
+    step(1, "this weekend's card and sportsbook odds")
+    card = cmd_fetch_card(argparse.Namespace(event=None, date=None, out=None), cfg)
+
+    step(2, "regional records for the card's fighters")
+    try:
+        cmd_fetch_sherdog(argparse.Namespace(card=str(card), delay=None, force=False,
+                                             event_url=None), cfg)
+    except (SystemExit, OSError, ValueError) as exc:
+        # Debutants lose their pre-UFC record; everyone else is unaffected.
+        print(f"Skipped: {exc}")
+
+    step(3, "newest fight results")
+    cmd_refresh_data(args, cfg)
+
+    step(4, "refit the prediction model on the new data")
+    cmd_train(argparse.Namespace(trials=40, through=None, reuse_params=True), cfg)
+
+    step(5, "refit the in-fight model")
+    cmd_train_inplay(args, cfg)
+
+    step(6, "predictions")
+    cmd_predict(argparse.Namespace(card=str(card)), cfg)
+    print(f"\nReady. Predictions for {card.stem} are saved. Start the bot with ./ictus.sh")
+
+
 def cmd_fetch_sherdog(args: argparse.Namespace, cfg: dict) -> None:
     """Fetch regional fight records from Sherdog for a card's fighters."""
     from octagon.scraping import sherdog
@@ -590,9 +627,54 @@ def cmd_predict(args: argparse.Namespace, cfg: dict) -> None:
     frozen = reports / f"card_predictions_{card_path.stem}.parquet"
     predictions_frame(pred).to_parquet(frozen, index=False)
     print(md)
+    from octagon.api.findings import write_site_picks
+
+    site = write_site_picks()
     print(f"\nWrote {out} and {frozen.name}")
-    print("The website serves this on the next refresh — no restart needed.")
+    _post_picks(site)
     warn_missing_media(card_path, cfg)
+
+
+def _post_picks(picks: Path) -> None:
+    """Commit and push the picks file so the deployed site updates.
+
+    Only that file is committed. The push waits until it is the only commit
+    main is ahead by, so an unrelated local commit is not published with it.
+    """
+    import subprocess
+
+    repo = picks.resolve().parents[2]
+    rel = str(picks.resolve().relative_to(repo))
+
+    def run(*args: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(args, cwd=repo, capture_output=True, text=True)
+
+    branch = run("git", "branch", "--show-current")
+    if branch.returncode != 0 or branch.stdout.strip() != "main":
+        print(f"Saved {rel}. It goes on the site when main is pushed.")
+        return
+    if run("git", "add", "--", rel).returncode != 0:
+        print(f"Saved {rel}. Could not stage it for the site.")
+        return
+    staged = run("git", "diff", "--cached", "--quiet", "--", rel)
+    if staged.returncode == 0:
+        print("The site already has these picks.")
+        return
+    if staged.returncode != 1:
+        print(f"Saved {rel}. Could not check whether it changed.")
+        return
+    committed = run("git", "commit", "-m", "Publish the latest model picks.", "--", rel)
+    if committed.returncode != 0:
+        print(f"Saved {rel}. The site commit did not finish.")
+        return
+    ahead = run("git", "rev-list", "--count", "origin/main..HEAD")
+    if ahead.returncode != 0 or ahead.stdout.strip() != "1":
+        print(f"Saved {rel} in a local commit. Push main to update the site.")
+        return
+    if run("git", "push", "origin", "HEAD").returncode != 0:
+        print(f"Saved {rel}. The push did not finish.")
+        return
+    print("Pushed. The site updates when that deploy finishes.")
 
 
 def warn_missing_media(card_path: Path, cfg: dict) -> None:
@@ -957,6 +1039,11 @@ def main() -> None:
     p.add_argument("--skip-refresh", action="store_true",
                    help="skip Greco CSV refresh (faster local loop)")
     p.set_defaults(func=cmd_day_before)
+
+    sub.add_parser(
+        "weekend",
+        help="the whole pre-card routine: card, odds, new results, refit, predictions"
+    ).set_defaults(func=cmd_weekend)
 
     p = sub.add_parser("fetch-sherdog",
                        help="fetch regional fight records from Sherdog")

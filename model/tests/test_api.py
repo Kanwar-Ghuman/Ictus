@@ -179,6 +179,31 @@ def _write_card(root, slug, date, event="UFC Test Night", sections=("Main card",
     findings.reset_cache()
 
 
+def test_dashboard_picks_come_from_the_saved_card(client):
+    """The homepage can show picks with the trading bot stopped."""
+    _, root = client
+    _write_card(root, "soon", "2999-01-01", sections=("Main card",))
+    body = findings.dashboard_picks(today="2026-11-13")
+    fight = body["fights"][0]
+    assert body["event"] == "UFC Test Night" and body["date"] == "2999-01-01"
+    assert fight["f1"] == "Ann Alpha 0" and fight["winner"] is None
+    assert fight["pick"]["winner"] == "Ann Alpha 0"
+    assert fight["pick"]["method"] in {"KO/TKO", "SUB", "DEC"}
+
+
+def test_dashboard_picks_are_empty_when_nothing_is_saved(client):
+    assert findings.dashboard_picks() == {"event": None, "date": None, "fights": []}
+
+
+def test_site_picks_file_is_the_saved_card(client, tmp_path):
+    _, root = client
+    _write_card(root, "soon", "2999-01-01", sections=("Main card",))
+    target = tmp_path / "picks.json"
+    findings.write_site_picks(target)
+    body = json.loads(target.read_text(encoding="utf-8"))
+    assert body["fights"][0]["pick"]["winner"] == "Ann Alpha 0"
+
+
 def test_next_card_prefers_the_soonest_card_still_to_come(client):
     api, root = client
     _write_card(root, "old", "2020-01-01")

@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from octagon.config import load_config, resolve_path
+from octagon.config import load_config, project_root, resolve_path
 from octagon.eval import metrics
 
 SPLITS = ("valid", "test")
@@ -421,6 +421,62 @@ def card_detail(slug: str) -> dict | None:
                                          tz="UTC").isoformat(),
             "headline": _headline(bouts),
             "bouts": bouts}
+
+
+def dashboard_picks(today: str | None = None) -> dict:
+    """The pick table, from the saved card. No bot and no live feed."""
+    slug = next_card_slug(today)
+    detail = card_detail(slug) if slug else None
+    if detail is None:
+        return {"event": None, "date": None, "fights": []}
+    return {
+        "event": detail["event"],
+        "date": str(detail["date"])[:10],
+        "fights": [_dashboard_fight(bout) for bout in detail["bouts"]],
+    }
+
+
+def write_site_picks(target: Path | None = None) -> Path:
+    """Write the pick table the deployed site ships in frontend/public."""
+    import json
+
+    target = target or (project_root().parent / "frontend" / "public" / "picks.json")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(dashboard_picks(), indent=2) + "\n", encoding="utf-8")
+    return target
+
+
+def _dashboard_fight(bout: dict) -> dict:
+    outcome = bout.get("top_outcome") or {}
+    rnd = outcome.get("round")
+    return {
+        "f1": bout["f1"], "f2": bout["f2"],
+        "p_f1": _num(bout.get("p_f1_wins")), "line": None,
+        "pick": {
+            "winner": bout["pick"],
+            "confidence": _num(bout.get("confidence")),
+            "method": outcome.get("method"),
+            "round": None if rnd is None else int(rnd),
+            "exact_probability": _num(outcome.get("probability")),
+        },
+        "weight_class": _text(bout.get("weight_class")),
+        "result": None, "bout_id": None, "status": None, "round": None,
+        "ticker": None, "yes_fighter": None, "yes_bid": None, "yes_ask": None,
+        "rules_primary": None, "rules_secondary": None,
+        "include": False, "note": "", "winner": None,
+    }
+
+
+def _text(value) -> str | None:
+    if value is None or pd.isna(value):
+        return None
+    return str(value)
+
+
+def _num(value) -> float | None:
+    if value is None or pd.isna(value):
+        return None
+    return float(value)
 
 
 def _outcome_phrase(column: str) -> str:

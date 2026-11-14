@@ -1,27 +1,20 @@
 "use client";
 
-import { BotOffline } from "@/components/BotOffline";
 import { ControlPanel } from "@/components/ControlPanel";
+import { SavedPicks } from "@/components/SavedPicks";
 import { EventHeader } from "@/components/EventHeader";
 import { FightCard } from "@/components/FightCard";
 import { ModelPicks } from "@/components/ModelPicks";
 import { PageHero } from "@/components/PageHero";
 import { Banner } from "@/components/ui";
 import { useBot } from "@/hooks/useBot";
-import type { Plan, Prepare, Status } from "@/lib/types";
+import type { Plan, Prepare, SavedCard, Status } from "@/lib/types";
 
 /** The whole page: tonight's event, the start/stop box, any notices, the model's picks, and betting. */
-export function Dashboard() {
+export function Dashboard({ saved }: { saved: SavedCard }) {
   const { status, plan, prepare, offline, pending, error, needsPredictions, prepareStuck, act } = useBot();
 
-  if (offline) return <BotOffline />;
-  if (!status) {
-    return (
-      <PageHero>
-        <h1 className="hero-title"><span className="hero-mute">Connecting to the bot…</span></h1>
-      </PageHero>
-    );
-  }
+  if (offline || !status) return <SavedPicks card={saved} />;
 
   const fights = plan?.fights ?? [];
   const canStart = Boolean(plan?.card) && fights.some((fight) => fight.include);
