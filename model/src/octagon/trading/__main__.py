@@ -61,7 +61,9 @@ def main(argv=None):
     parser.add_argument("--venue-lag", action="store_true",
                         help="Also require the Kalshi ask to lag a same-time sportsbook price")
     parser.add_argument("--max-bout-fraction", type=fraction, default=defaults.max_bout_fraction,
-                        help="Most of the event budget one fight may use across all its bets")
+                        help="Most of the event budget one fight may use across all its bets (default 0.25)")
+    parser.add_argument("--kelly-share", type=fraction, default=defaults.kelly_share,
+                        help="Share of a fight's Kelly stake it may get (default 0.5; 1 is full Kelly)")
     parser.add_argument("--inplay-reserve", type=fraction, default=defaults.inplay_reserve,
                         help="With --in-fight, share of the budget kept for between-rounds bets")
     parser.add_argument("--min-ufc-fights", type=int, default=defaults.min_ufc_fights,
@@ -88,6 +90,7 @@ def main(argv=None):
     policy = RiskPolicy(min_net_edge=args.min_edge,
                         min_price=args.min_price,
                         max_bout_fraction=args.max_bout_fraction,
+                        kelly_share=args.kelly_share,
                         inplay_reserve=args.inplay_reserve,
                         min_ufc_fights=args.min_ufc_fights,
                         max_source_age_seconds=args.max_source_age_seconds,

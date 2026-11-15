@@ -16,7 +16,8 @@ from octagon.features.build import (Bout, build_feature_rows, elo_kwargs, load_b
                                     load_tott)
 from octagon.features.research import research_brief
 from octagon.models.market import (
-    apply_market_layer, apply_ranking_nudge, resolve_research_weight,
+    apply_market_layer, apply_ranking_nudge, debut_follows_market,
+    resolve_research_weight,
 )
 
 
@@ -277,6 +278,15 @@ def card_predictions(conn, card_path: Path, artifact: dict, cfg: dict) -> CardPr
                                     implied_probability(row["f2_odds"]))
     if mode == "skill_only":
         p = p_skill.copy()
+        n1 = upcoming["f1_n_fights"].to_numpy()
+        n2 = upcoming["f2_n_fights"].to_numpy()
+        for i in range(len(p)):
+            if not debut_follows_market(p_skill[i], fair[i], n1[i], n2[i]):
+                continue
+            p[i] = fair[i]
+            context_notes.setdefault(i, []).append(
+                f"debut: skill {float(p_skill[i]):.0%} and the market "
+                f"{float(fair[i]):.0%} pick different fighters — using the market")
     else:
         p, trapped = apply_market_layer(
             p_skill, fair,

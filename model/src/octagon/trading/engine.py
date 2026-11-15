@@ -57,6 +57,8 @@ LIVE_DECISION_SECONDS = 1.0
 # happens that soon.
 MARKET_DAYS = 2
 MAX_MARKETS = 30
+# An unchanged fight packet is still journaled this often, to show the feed was alive.
+FEED_HEARTBEAT_SECONDS = 60.0
 
 
 def timestamp(value: Any) -> float:
@@ -144,6 +146,8 @@ class TradingEngine:
         self.break_seen: dict[tuple[str, int], float] = {}
         # The last pre-fight pick per market: the in-play model's prior.
         self.picks: dict[str, tuple[Decimal, str]] = {}
+        # Validated market details per ticker: (when fetched, market, fee multiplier).
+        self._contexts: dict[str, tuple[float, dict, Decimal]] = {}
         # Latest live stats for the bout being priced, for the control check.
         self.live_stats: tuple[dict, dict] | None = None
         # Monotonic time of the last order attempt per attempt family.
@@ -162,6 +166,8 @@ class TradingEngine:
         self.feed: dict | None = None
         self.feed_received: float | None = None
         self.feed_connected = False
+        self._feed_mark: str | None = None
+        self._feed_recorded = 0.0
         self.market_connected = False
         self.market_received: float | None = None
         self.market_stream_required = False
@@ -223,6 +229,7 @@ class TradingEngine:
             self.config = config
             self.decisions = []
             self.picks = {}
+            self._contexts = {}
             self.results = self.ledger.results(self.session_id)
             self.message = "Configured and paused. Budget is a spending ceiling, not a target."
             self.record("configuration", config)
@@ -332,7 +339,25 @@ class TradingEngine:
                             continue
                         self.ledger.block_bout(self.session_id, str(bout.get("bout_id")),
                                                "Bout observed started or unavailable")
-        self.record("fight_feed", message)
+        if self._feed_is_news(message):
+            self.record("fight_feed", message)
+
+    def _feed_is_news(self, message) -> bool:
+        """Journal a fight packet when its content changed, or once a minute.
+
+        The gateway sends one a second and most repeat the last. Writing them
+        all filled the journal in under an hour, so a full card rotated its
+        own early fights out before anyone could study them.
+        """
+        meta = message.get("meta") if isinstance(message, dict) else None
+        mark = (meta or {}).get("fingerprint") or hashlib.sha256(json.dumps(
+            message.get("data") if isinstance(message, dict) else message,
+            sort_keys=True, default=str).encode()).hexdigest()
+        now = time.monotonic()
+        if mark == self._feed_mark and now - self._feed_recorded < FEED_HEARTBEAT_SECONDS:
+            return False
+        self._feed_mark, self._feed_recorded = mark, now
+        return True
 
     def _record_results(self, bouts: list):
         """Keep each mapped bout's ESPN result, under the card's fighter names."""
@@ -418,11 +443,13 @@ class TradingEngine:
                 if generation != self.stop_generation:
                     raise ValueError("Start was canceled by Stop; review the session before resuming")
                 self.running.set()
-                self.message = (f"{self.mode.title()} session running. "
-                                + ("In-fight reprices from the live clock and stats."
-                                   if self.inplay is not None
-                                   else "In-progress bouts remain blocked."))
+                self.message = self._running_message()
             return self.status()
+
+    def _running_message(self) -> str:
+        return (f"{self.mode.title()} session running. "
+                + ("In-fight reprices from the live clock and stats."
+                   if self.inplay is not None else "In-progress bouts remain blocked."))
 
     def stop(self) -> dict:
         # Set before acquiring the tick lock so a slow read cannot delay the stop.
@@ -584,6 +611,9 @@ class TradingEngine:
             quotes = rest_quotes(self.client.get_orderbook(ticker))
         except (ValueError, RuntimeError):
             return
+        # Every price the bot sees goes on the tape, so the falling-price
+        # check at the opening bell knows where the price was before it.
+        self.tape.add(ticker, now, quotes["yes"][0], quotes["no"][0])
         yes_ask, yes_bid = quotes["yes"][0], 1 - quotes["no"][0]
         if not 0 < yes_bid <= yes_ask < 1 or yes_ask - yes_bid > self.policy.max_spread:
             return
@@ -623,6 +653,26 @@ class TradingEngine:
         tmp.replace(self.prefight_path)
 
     def _market_context(self, mapping: dict) -> tuple[dict, Decimal]:
+        """The market's validated details and fee multiplier.
+
+        Its rules, fee schedule and the exchange status change rarely, and
+        fetching all four records for every fight on every pass made one pass
+        over a card take about ten seconds, too slow to reach a live fight
+        inside a break. They are reused for a few seconds. The price is never
+        cached, and the closing time is checked against the clock every time.
+        """
+        ticker = mapping["ticker"]
+        cached = self._contexts.get(ticker)
+        if cached and time.monotonic() - cached[0] < self.policy.market_context_seconds:
+            market, multiplier = cached[1], cached[2]
+            if timestamp(market.get("close_time")) - time.time() <= self.policy.close_buffer_seconds:
+                raise ValueError("Market is closed or too close to closing")
+            return market, multiplier
+        market, multiplier = self._fetch_market_context(mapping)
+        self._contexts[ticker] = (time.monotonic(), market, multiplier)
+        return market, multiplier
+
+    def _fetch_market_context(self, mapping: dict) -> tuple[dict, Decimal]:
         market = self.client.get_market(mapping["ticker"])
         self._validate_identity(market, mapping)
         if self._market_identity(market) != mapping["market_identity"]:
@@ -685,6 +735,7 @@ class TradingEngine:
                                         "No new order until it clears.")
                     return
                 orders = self.ledger.orders(self.session_id)
+                self.message = self._running_message()  # confirmed: back to normal
             decisions = []
             for mapping in self.config["mappings"]:
                 if not self.running.is_set():
@@ -1023,7 +1074,7 @@ class TradingEngine:
         else:
             order = self.client.find_order_by_client_id(local["id"], ticker=local["ticker"])
         if order is None:
-            return False
+            return self._release_if_never_arrived(local)
         if order.get("client_order_id") != local["id"] or order.get("ticker") != local["ticker"]:
             raise ValueError("Exchange order identity mismatch")
         self._validate_direction(order, local["side"])
@@ -1062,6 +1113,35 @@ class TradingEngine:
         self.ledger.finish(local["id"], spent, filled,
                            ("demo_filled" if self.mode == "demo" else "filled") if filled else "unfilled",
                            order.get("order_id"))
+        return True
+
+    def _release_if_never_arrived(self, local: dict) -> bool:
+        """Free a reservation whose order provably never reached Kalshi.
+
+        A request that times out before Kalshi takes it leaves nothing to find,
+        and its reservation would otherwise hold back every later order for
+        the rest of the night. It is released only when all of these hold:
+        Kalshi never returned an order id, the order has stayed unfindable for
+        ``lost_order_seconds``, and the account's position in that market is
+        exactly what the ledger's confirmed fills add up to, so the order
+        cannot have filled.
+        """
+        if local["exchange_order_id"]:
+            return False
+        placed = datetime.fromisoformat(local["created_at"]).replace(tzinfo=timezone.utc)
+        if time.time() - placed.timestamp() < self.policy.lost_order_seconds:
+            return False
+        ticker = local["ticker"]
+        held = sum((decimal(p.get("position_fp")) for p in self.client.list_positions(ticker=ticker)
+                    if p.get("ticker") == ticker), Decimal(0))
+        confirmed = sum((decimal(o["filled_count"]) * (1 if o["side"] == "yes" else -1)
+                         for o in self.ledger.orders(self.session_id)
+                         if o["ticker"] == ticker and o["status"] in {"filled", "demo_filled"}),
+                        Decimal(0))
+        if held != confirmed:
+            return False
+        self.ledger.finish(local["id"], Decimal(0), Decimal(0), "unfilled")
+        self.record("order_never_arrived", {"id": local["id"], "ticker": ticker})
         return True
 
     @staticmethod

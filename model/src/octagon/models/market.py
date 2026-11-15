@@ -105,6 +105,26 @@ _MARKET_TRAP_SKILL_BAND = 0.03
 _MARKET_TRAP_GAP = 0.20
 
 
+def debut_follows_market(skill: float, market: float,
+                         f1_n_fights: float, f2_n_fights: float) -> bool:
+    """True when a debut pick should be the market's side, not skill's.
+
+    One fighter has no UFC fights, the two numbers choose different winners,
+    and they are more than 20 points apart. On the 2022–2023 priced fights
+    in that spot the market won 11 of 13 and skill won 2. A smaller gap, the
+    same side, or two fighters who have both been in the UFC are left alone.
+    """
+    try:
+        skill_p, market_p = float(skill), float(market)
+    except (TypeError, ValueError):
+        return False
+    if skill_p != skill_p or market_p != market_p:  # NaN
+        return False
+    debut = float(f1_n_fights or 0) == 0 or float(f2_n_fights or 0) == 0
+    opposite = (skill_p - 0.5) * (market_p - 0.5) < 0
+    return debut and opposite and abs(market_p - skill_p) > _MARKET_TRAP_GAP
+
+
 def market_trap_abstain(skill: float, market: float,
                         f1_n_fights: float, f2_n_fights: float) -> bool:
     """True when we should ship 0.5 instead of following the market.

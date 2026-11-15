@@ -12,6 +12,8 @@ from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal, InvalidOperation
 ZERO = Decimal("0")
 ONE = Decimal("1")
 CENT = Decimal("0.01")
+FEE_STEP = Decimal("0.0001")
+TAKER_RATE = Decimal("0.07")
 
 
 def decimal(value: object) -> Decimal:
@@ -64,9 +66,18 @@ class RiskPolicy:
     full_slice_kelly: Decimal = Decimal("0.10")
     max_slice_multiple: Decimal = Decimal("2")
     # Hard ceiling on all spending on one fight (every phase), share of budget.
-    max_bout_fraction: Decimal = Decimal("0.40")
+    max_bout_fraction: Decimal = Decimal("0.25")
+    # A fight also never gets more than this share of its Kelly stake (the
+    # stake that grows a bankroll fastest if the edge is exactly right). Half,
+    # because the edge is an estimate and betting past Kelly loses money even
+    # when the model is good. Without this the last fights of a card took
+    # whatever budget was left, however thin their edge.
+    kelly_share: Decimal = Decimal("0.5")
     # With in-fight trading on, pre-fight bets may use at most 1 - this share.
     inplay_reserve: Decimal = Decimal("0.30")
+    # An order Kalshi never acknowledged and that cannot be found for this long
+    # is treated as never sent, once the account's holdings confirm it.
+    lost_order_seconds: float = 90.0
     # A missed or partly filled order is retried while the edge lasts.
     max_prefight_attempts: int = 6
     prefight_retry_seconds: float = 30.0
@@ -83,6 +94,8 @@ class RiskPolicy:
     max_feed_age_seconds: float = 10.0
     max_source_age_seconds: float = 15.0
     max_book_age_seconds: float = 5.0
+    # How long a market's rules, fees and exchange status are reused. Prices never are.
+    market_context_seconds: float = 20.0
     close_buffer_seconds: float = 60.0
     # In-fight: let ESPN settle round totals after the break begins.
     min_break_seconds: float = 10.0
@@ -104,26 +117,42 @@ class Candidate:
 
 
 def taker_fee(price: Decimal, count: int, multiplier: Decimal) -> Decimal:
-    """Conservative cent-rounded quadratic taker fee; fee overrides are required.
+    """The fee to *reserve*: the quadratic taker fee rounded up to a whole cent.
 
-    The exchange may charge finer precision or apply rounding rebates. Do not
-    spend those rebates or assume the displayed quote will actually fill.
+    Deliberately more than Kalshi charges, so a reservation always covers the
+    order however its fills are split. Use ``charged_fee`` to judge an edge.
     """
-    return (Decimal("0.07") * multiplier * count * price * (ONE - price)).quantize(
+    return (TAKER_RATE * multiplier * count * price * (ONE - price)).quantize(
         CENT, rounding=ROUND_CEILING
+    )
+
+
+def charged_fee(price: Decimal, count: int | Decimal, multiplier: Decimal) -> Decimal:
+    """The fee Kalshi charges: 7% × contracts × price × (1 − price), rounded up
+    to a hundredth of a cent.
+
+    Checked against all 38 real fills in the ledger through November 7, 2026:
+    every one matched to the last digit. The whole-cent figure in ``taker_fee``
+    overstated them by 0.44 cents a contract, which hid real edges.
+    """
+    return (TAKER_RATE * multiplier * count * price * (ONE - price)).quantize(
+        FEE_STEP, rounding=ROUND_CEILING
     )
 
 
 def edge_of(probability: Decimal, price: Decimal, fee_multiplier: Decimal,
             policy: RiskPolicy) -> tuple[Decimal, Decimal, Decimal]:
-    """(per-contract cost incl. fee, net edge, Kelly fraction) for buying at price."""
-    # Reserve a cent-rounded fee for *each* contract: splitting fills must not
-    # exceed the reservation due to exchange fee rounding.
+    """(dollars to reserve per contract, net edge, Kelly fraction) for buying at price.
+
+    The reservation uses the whole-cent fee so the budget can never be
+    overrun. The edge and Kelly use the fee Kalshi actually charges.
+    """
     unit_cost = price + taker_fee(price, 1, fee_multiplier)
+    true_cost = price + charged_fee(price, 1, fee_multiplier)
     belief = min(ONE, max(ZERO, probability - policy.probability_haircut))
     payout = contract_payout(belief, policy.draw_settlement_rate)
-    edge = max(ZERO, payout) - unit_cost
-    kelly = max(ZERO, edge / (ONE - unit_cost)) if unit_cost < ONE else ZERO
+    edge = max(ZERO, payout) - true_cost
+    kelly = max(ZERO, edge / (ONE - true_cost)) if true_cost < ONE else ZERO
     return unit_cost, edge, kelly
 
 
@@ -153,12 +182,17 @@ def bout_allowance(*, kelly: Decimal, budget: Decimal, remaining: Decimal,
         return ZERO
     conviction = min(policy.max_slice_multiple, kelly / policy.full_slice_kelly)
     target = phase_pool / open_bouts * conviction
+    kelly_stake = budget * kelly * policy.kelly_share
     if phase_bout_spent <= ZERO:
         target = max(target, unit_cost)
+    if bout_spent <= ZERO:
+        # One contract is always allowed, or a small budget could never bet.
+        kelly_stake = max(kelly_stake, unit_cost)
     return max(ZERO, min(
         remaining,
         phase_available,
         budget * policy.max_bout_fraction - bout_spent,
+        kelly_stake - bout_spent,
         target - phase_bout_spent,
     ))
 
@@ -196,5 +230,5 @@ def size_candidate(
         return None
     return Candidate(
         side, probability, price, count, unit_cost * count,
-        price * count + taker_fee(price, count, fee_multiplier), edge,
+        price * count + charged_fee(price, count, fee_multiplier), edge,
     )

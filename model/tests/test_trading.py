@@ -611,7 +611,7 @@ def test_process_lease_and_record_rotation(tmp_path):
     record = Recorder(tmp_path, max_bytes=100)
     for i in range(10):
         record("test", {"index": i})
-    assert len(list(tmp_path.glob("observations.jsonl*"))) <= 4
+    assert len(list(tmp_path.glob("observations.jsonl*"))) <= 8  # the live file and seven older
 
 
 def test_rest_book_does_not_accept_cents_or_nan_as_dollars():
@@ -702,18 +702,21 @@ def test_oct31_brown_smith_edge_now_trades():
     assert result.net_edge >= RiskPolicy().min_net_edge
 
 
-def test_budget_is_split_across_open_fights_by_conviction():
+def test_a_fight_gets_its_slice_but_never_more_than_half_its_kelly_stake():
     policy = RiskPolicy()
     common = dict(budget=D(12), remaining=D(12), phase_available=D(12), phase_pool=D(12),
                   open_bouts=12, phase_bout_spent=D(0), bout_spent=D(0), policy=policy)
-    assert bout_allowance(kelly=D("0.10"), **common) == D(1)       # one slice
-    assert bout_allowance(kelly=D("0.05"), **common) == D("0.5")   # weak edge, half a slice
-    assert bout_allowance(kelly=D("0.90"), **common) == D(2)       # capped at two slices
-    # Later in the night, unused money flows to the fights that are left.
-    late = common | dict(phase_pool=D(12), open_bouts=2)
-    assert bout_allowance(kelly=D("0.05"), **late) == D(3)
-    assert bout_allowance(kelly=D("0.90"), **late) == D("4.8")     # 40% per-fight ceiling
-    assert bout_allowance(kelly=D("0.05"), **late | dict(phase_bout_spent=D(3))) == 0
+    # A $1 slice each. Half of Kelly is what binds on ordinary edges.
+    assert bout_allowance(kelly=D("0.10"), **common) == D("0.6")   # 12 x 10% x one half
+    assert bout_allowance(kelly=D("0.05"), **common) == D("0.3")
+    assert bout_allowance(kelly=D("0.90"), **common) == D(2)       # a huge edge: two slices at most
+    # Late in the night the slices grow, but a thin edge still gets a thin stake.
+    late = common | dict(open_bouts=2)
+    assert bout_allowance(kelly=D("0.05"), **late) == D("0.3")
+    assert bout_allowance(kelly=D("0.90"), **late) == D(3)         # the 25% per-fight ceiling
+    assert bout_allowance(kelly=D("0.90"), **late | dict(phase_bout_spent=D(3), bout_spent=D(3))) == 0
+    # Money already on the fight in another phase counts against the same stake.
+    assert bout_allowance(kelly=D("0.10"), **common | dict(bout_spent=D("0.4"))) == D("0.2")
 
 
 def test_small_budget_long_card_still_buys_one_contract():
@@ -933,3 +936,110 @@ def test_a_draw_pays_half_and_a_loss_pays_nothing():
     # A final bout with no winner yet is not a split unless ESPN says draw or no-contest.
     assert bout_result(bout | {"method": "KO/TKO"}, None) is None
     assert bout_result(bout | {"status": "in_progress"}, "Alpha Fighter") is None
+
+
+def test_the_edge_uses_the_fee_kalshi_charges_and_the_reservation_stays_whole_cents():
+    from octagon.trading.risk import charged_fee, edge_of, taker_fee
+
+    # Three real fills from the November 7 ledger: (price, contracts, fee charged).
+    for price, count, charged in (("0.33", 3, "0.0465"), ("0.68", 1, "0.0153"), ("0.27", 1, "0.0138")):
+        assert charged_fee(D(price), count, D(1)) == D(charged)
+        assert taker_fee(D(price), count, D(1)) >= D(charged)
+    policy = RiskPolicy(draw_settlement_rate=D(0))
+    reserve, edge, _ = edge_of(D("0.72"), D("0.68"), D(1), policy)
+    assert reserve == D("0.70")                      # 68 cents plus a whole-cent fee
+    assert edge == D("0.72") - D("0.68") - D("0.0153")  # judged on the real fee
+    sized = candidate(probability=D("0.75"), price=D("0.68"), allowance=D("7.00"))
+    assert sized.count == 10 and sized.reserved_cost == D("7.00")
+    assert sized.estimated_cost == D("6.80") + charged_fee(D("0.68"), 10, D(1))
+
+
+def test_an_unchanged_fight_packet_is_journaled_once(tmp_path):
+    seen = []
+    engine = TradingEngine(Ledger(tmp_path / "journal.db"), Exchange(),
+                           record=lambda kind, data: seen.append(kind))
+    packet = feed()
+    packet["meta"]["fingerprint"] = "same"
+    for _ in range(5):
+        engine.update_feed(packet)
+    assert seen.count("fight_feed") == 1
+    packet = feed()
+    packet["meta"]["fingerprint"] = "changed"
+    engine.update_feed(packet)
+    assert seen.count("fight_feed") == 2
+    # Without a fingerprint the content itself is compared.
+    bare = feed()
+    engine.update_feed(bare)
+    engine.update_feed(copy.deepcopy(bare) | {"meta": bare["meta"] | {"seq": 99}})
+    assert seen.count("fight_feed") == 3
+
+
+def backdate(engine, seconds):
+    with engine.ledger.connection() as db:
+        db.execute("UPDATE orders SET created_at = datetime('now', ?)", (f"-{seconds} seconds",))
+
+
+def test_an_order_that_never_reached_kalshi_is_released_and_trading_resumes(tmp_path):
+    engine, exchange = demo_engine(tmp_path)
+    exchange.raise_on_submit = KalshiTransportError("timeout", ambiguous=True)
+    engine.start()
+    engine.tick()
+    exchange.raise_on_submit = None
+    engine.tick()
+    # Too soon to conclude anything: the money stays reserved and nothing new is sent.
+    assert D(engine.status()["event"]["reserved_dollars"]) > 0 and len(exchange.sent) == 1
+    backdate(engine, 120)
+    engine.last_attempt.clear()
+    engine.tick()
+    orders = engine.status()["orders"]
+    lost = next(o for o in orders if o["id"] == exchange.sent[0])
+    assert lost["status"] == "unfilled" and D(lost["cost_dollars"]) == 0
+    assert D(engine.status()["event"]["reserved_dollars"]) == 0
+    assert engine.running.is_set()
+    assert len(exchange.sent) == 2  # and the same pass carried on with a new attempt
+    assert "Confirming" not in engine.status()["message"]  # the notice clears with the order
+
+
+def test_an_unfound_order_is_kept_when_the_account_shows_it_filled(tmp_path):
+    engine, exchange = demo_engine(tmp_path)
+    exchange.raise_on_submit = KalshiTransportError("timeout", ambiguous=True)
+    engine.start()
+    engine.tick()
+    # The request timed out, yet the contracts are in the account.
+    exchange.positions = [{"ticker": "WIN-0", "position_fp": "3.00"}]
+    backdate(engine, 120)
+    engine.tick()
+    assert D(engine.status()["event"]["reserved_dollars"]) > 0
+    assert engine.status()["orders"][0]["status"] == "unknown"
+    assert len(exchange.sent) == 1
+
+
+def test_market_details_are_reused_between_passes_but_prices_never_are(tmp_path):
+    exchange = Exchange()
+    calls = {"market": 0, "book": 0}
+    plain_market = exchange.get_market
+
+    def market(ticker):
+        calls["market"] += 1
+        return plain_market(ticker)
+
+    def book(ticker):
+        calls["book"] += 1
+        # Priced so that nothing is ever bought: every pass just looks.
+        return {"orderbook_fp": {"yes_dollars": [["0.8900", "100.00"]], "no_dollars": [["0.1000", "100.00"]]}}
+
+    exchange.get_market, exchange.get_orderbook = market, book
+    engine = TradingEngine(Ledger(tmp_path / "cache.db"), exchange)
+    engine.configure(request(), card())
+    configured = calls["market"]
+    engine.update_feed(feed())
+    engine.start()
+    for _ in range(4):
+        engine.tick()
+    assert calls["market"] == configured + 1   # fetched once, then reused
+    assert calls["book"] >= 4                   # a fresh price every pass
+    # A cached market that has reached its close is still refused, by the clock.
+    stamp, details, multiplier = engine._contexts["WIN-0"]
+    engine._contexts["WIN-0"] = (stamp, details | {"close_time": iso(10)}, multiplier)
+    engine.tick()
+    assert "clos" in engine.status()["decisions"][0]["reason"]

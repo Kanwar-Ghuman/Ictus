@@ -9,6 +9,35 @@ supports, and that evidence is thin: one validation backtest against sportsbook
 closes and one real-money night. Nothing here has been measured against Kalshi
 prices over many events. See [model evidence](trading_model_readiness.md).
 
+## Fight week
+
+Three commands, from the repository root.
+
+**The day before, after the weigh-ins** (Friday afternoon for a Saturday card):
+
+```bash
+./ictus.sh prepare
+```
+
+It fetches the card and sportsbook odds, the fighters' regional records, and
+the newest fight results, refits both models on them, and builds this
+weekend's predictions. It takes several minutes. Run it after the weigh-ins
+because opponents change until then, and a prediction for a fight that is no
+longer happening is skipped on fight night.
+
+**Fight day, before you start:**
+
+```bash
+./ictus.sh check live 70
+```
+
+A read-only checklist: fight data is current, the model matches it, the
+predictions are fresh, ESPN and Kalshi answer, and the Kalshi keys work with
+enough cash for the limit. It places no orders.
+
+**Then start it**, about an hour before the first fight, so every fight gets
+its pre-fight look while Kalshi's markets are busy.
+
 ## Fight night
 
 From the repository root:
@@ -142,9 +171,10 @@ are no historical in-play Kalshi prices to test against.
 | Event limit | Your amount, including fees and unconfirmed orders. Live mode also has the hard cap from the command line |
 | Budget split | Each fight still open gets an equal slice of the money left for its phase. Money from skipped fights flows to the rest |
 | Sizing | Slice × conviction: a 10% Kelly edge gets one slice, stronger edges up to two, weaker ones less. A fight with an edge may always buy one contract. Also limited by depth |
-| Per-fight ceiling | 40% of the event limit across all of that fight's bets |
+| Kelly ceiling | A fight never gets more than half its Kelly stake (limit × Kelly fraction ÷ 2). The edge is an estimate, and betting past Kelly loses money even with a good model. Without this the last fights of a card took whatever was left |
+| Per-fight ceiling | 25% of the event limit across all of that fight's bets |
 | In-fight reserve | With in-fight trading on, pre-fight bets use at most 70% |
-| Minimum edge | 3¢ per $1 contract after the taker fee |
+| Minimum edge | 3¢ per $1 contract after the fee Kalshi charges: 7% × price × (1 − price), rounded up to a hundredth of a cent. Budget reservations still round the fee up to a whole cent |
 | Price floor | 20¢ |
 | Maximum spread | 8¢ |
 | Draw or no-contest | 1.8% of fights (70 of 3,941 from 2019 on) settle at 50¢. The edge is reduced for it |
@@ -205,6 +235,38 @@ the guards refuses 22 of 39: 17 longshots (−$4.08), one opposite-side buy
 left returns +$15.16 on $10.84. That is hindsight on one night. The new
 probability would also have skipped the Walker bet, because the sportsbook line
 agreed with Kalshi's price.
+
+## Stress testing
+
+`tests/test_fight_night_stress.py` runs twelve randomized fight nights in paper
+mode: five fights each, from the hour before the first one through live rounds,
+breaks, and results, with Kalshi prices that wander and sometimes jump mid-round.
+After every decision it checks the promises: never over the limit, never more
+than a fight's share, never a contract under the price floor, never both
+fighters, never more buys than allowed in a phase, never a buy into a falling
+price, and a profit tally that adds up once every fight has settled.
+
+A second suite runs eight nights through the real order path with Kalshi
+misbehaving: requests lost before and after Kalshi receives them, rejections,
+and partial or empty fills. At the end every order has to be filled, unfilled
+or rejected with nothing left reserved, and the ledger has to hold exactly
+what the exchange says the account holds in every market.
+
+Writing them found three gaps, all fixed: prices seen while a fight was still
+scheduled were not part of the falling-price check at the opening bell; an
+order that never reached Kalshi froze the session; and the last fights of a
+card could take up to 40% of the limit on a thin edge.
+
+It tests the rules, not the edge. The simulated prices are deliberately wrong
+by up to 12¢, so its profits mean nothing.
+
+Things checked against real data on November 11, 2026:
+
+- **Fees.** All 38 real fills matched 7% × contracts × price × (1 − price),
+  rounded up to $0.0001. The bot had been assuming a whole cent per contract,
+  0.44¢ too much on average, which hid real edges.
+- **Fight data.** The database had stopped at September 12. Eight events were
+  missing until `refresh-data` was run.
 
 ## Setup
 
@@ -271,13 +333,20 @@ State is in `model/trading-state/` (gitignored). One process owns it at a time.
   the ledger (identity, size, direction, or fill charges) the session pauses
   with "Order records disagree with Kalshi". A submitted order is never resent.
   A definite rejection costs nothing and does not pause the session.
+- **An order that never arrived.** A request can time out before Kalshi
+  receives it. Its reservation is released, and trading carries on, only when
+  Kalshi never returned an order id, the order has been unfindable for 90
+  seconds, and the account's holdings in that market match the ledger's
+  confirmed fills exactly. Before this rule one lost request held every later
+  order for the rest of the night.
 - **Restart.** The bot always comes back stopped. Pressing Start on the
   dashboard checks open orders first. Fights that already have a bet keep their
   market. Other fights can be added or dropped.
 - **Journal.** `observations.jsonl` records fight packets, quotes, market
-  details, and every decision with its reason. It rotates at about 25 MB and
-  keeps three older files, which is roughly two hours of a live card. Copy the
-  files out before the next event if you want to study a whole night.
+  details, and every decision with its reason. A fight packet is written
+  only when it changes, or once a minute. The file rotates at about 25 MB and
+  seven older files are kept, which holds a whole card. Copy the files out
+  before the next event if you want to keep that night.
 - **Price stream.** The Kalshi websocket feeds the journal and the dashboard's
   status light. Orders are always priced from a fresh REST book, so a dropped
   socket does not block trading.

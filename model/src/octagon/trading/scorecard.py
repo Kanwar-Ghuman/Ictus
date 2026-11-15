@@ -16,7 +16,7 @@ from pathlib import Path
 
 import numpy as np
 
-from octagon.trading.risk import ZERO, taker_fee
+from octagon.trading.risk import ZERO, charged_fee
 
 FILLED = {"paper", "demo", "live"}
 
@@ -139,7 +139,7 @@ def fills_from_journal(rows: list[dict], settlements: dict[str, str] | None = No
                     continue
                 fee = _dec(decision.get("fee_dollars"))
                 if fee is None:
-                    fee = taker_fee(price, int(count), Decimal(1))
+                    fee = charged_fee(price, int(count), Decimal(1))
                 f1_mid = last_mid.get(ticker)
                 close = None
                 if f1_mid is not None:

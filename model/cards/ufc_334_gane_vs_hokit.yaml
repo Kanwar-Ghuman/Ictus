@@ -8,8 +8,8 @@ fights:
   rounds: 5
   section: Main card
   odds:
-  - 1.44
-  - 2.76
+  - 1.49
+  - 2.69
 - fighter1: Kayla Harrison
   fighter2: Amanda Nunes
   weight_class: Women's Bantamweight
@@ -17,8 +17,8 @@ fights:
   rounds: 5
   section: Main card
   odds:
-  - 1.515
-  - 2.605
+  - 1.595
+  - 2.41
 - fighter1: Caio Borralho
   fighter2: Yousri Belgaroui
   weight_class: Middleweight
@@ -26,8 +26,8 @@ fights:
   rounds: 3
   section: Main card
   odds:
-  - 1.61
-  - 2.34
+  - 1.62
+  - 2.35
 - fighter1: Uroš Medić
   fighter2: Kevin Holland
   weight_class: Welterweight
@@ -35,8 +35,8 @@ fights:
   rounds: 3
   section: Main card
   odds:
-  - 1.67
-  - 2.25
+  - 1.62
+  - 2.35
 - fighter1: Bilal Hasan
   fighter2: Luis Gurule
   weight_class: Flyweight
@@ -44,8 +44,8 @@ fights:
   rounds: 3
   section: Main card
   odds:
-  - 1.095
-  - 7.435
+  - 1.085
+  - 8.095
 - fighter1: Stephen Thompson
   fighter2: Charles Radtke
   weight_class: Welterweight
@@ -60,26 +60,26 @@ fights:
   rounds: 3
   section: Preliminary card
   odds:
-  - 2.35
-  - 1.615
+  - 2.545
+  - 1.535
 - fighter1: Jim Miller
   fighter2: Terrance McKinney
-  weight_class: Lightweight
+  weight_class: Catchweight (160.2 lb)
   title_fight: false
   rounds: 3
   section: Preliminary card
   odds:
-  - 2.715
+  - 2.74
   - 1.485
 - fighter1: Donte Johnson
   fighter2: César Almeida
-  weight_class: Middleweight
+  weight_class: Catchweight (190 lb)
   title_fight: false
   rounds: 3
   section: Preliminary card
   odds:
-  - 1.57
-  - 2.44
+  - 1.54
+  - 2.53
 - fighter1: Jared Gordon
   fighter2: Melquizael Costa
   weight_class: Lightweight
@@ -87,8 +87,8 @@ fights:
   rounds: 3
   section: Early preliminary card
   odds:
-  - 3.93
-  - 1.27
+  - 4.1
+  - 1.25
 - fighter1: Macy Chiasson
   fighter2: Beatriz Mesquita
   weight_class: Women's Bantamweight
@@ -96,8 +96,17 @@ fights:
   rounds: 3
   section: Early preliminary card
   odds:
-  - 3.075
-  - 1.385
+  - 2.995
+  - 1.42
+- fighter1: Alateng Heili
+  fighter2: Juan Díaz
+  weight_class: Catchweight (136.4 lb)
+  title_fight: false
+  rounds: 3
+  section: Early preliminary card
+  odds:
+  - 4.2
+  - 1.24
 - fighter1: Evan Elder
   fighter2: Samuel Sanches
   weight_class: Lightweight
@@ -105,14 +114,5 @@ fights:
   rounds: 3
   section: Early preliminary card
   odds:
-  - 2.0
-  - 1.83
-- fighter1: Juan Díaz
-  fighter2: Alateng Heili
-  weight_class: Bantamweight
-  title_fight: false
-  rounds: 3
-  section: Announced
-  odds:
-  - 1.33
-  - 3.45
+  - 1.985
+  - 1.845

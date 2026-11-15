@@ -7,6 +7,9 @@
 #   ./ictus.sh demo         Kalshi's demo exchange
 #   ./ictus.sh stop         stop whatever an earlier run left running
 #
+#   ./ictus.sh prepare      the day before: newest results, refit, this weekend's predictions
+#   ./ictus.sh check        is everything ready? Add "live 20" to check the Kalshi account too
+#
 # The bot trades before and during fights. Add --pre-fight-only to stop it at
 # the opening bell. Any other option is passed to the bot, e.g. --min-edge 0.02.
 set -euo pipefail
@@ -24,7 +27,7 @@ say()  { printf '%s\n' "$*"; }
 fail() { printf 'ictus: %s\n' "$*" >&2; exit 1; }
 
 usage() {
-  sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'
   exit "${1:-0}"
 }
 
@@ -69,6 +72,14 @@ MODE="${1:-paper}"
 case "$MODE" in
   -h|--help|help) usage ;;
   stop) free_ports; say "Stopped."; exit 0 ;;
+  prepare)
+    # Takes several minutes. Rebuilds this weekend's card and predictions from scratch.
+    cd model && exec uv run --extra trading python -m octagon weekend ;;
+  check)
+    if [[ "${1:-}" == "live" && -n "${2:-}" ]]; then
+      cd model && exec uv run --extra trading python -m octagon.trading.check --live "$2"
+    fi
+    cd model && exec uv run --extra trading python -m octagon.trading.check ;;
   paper|demo|live) ;;
   *) say "Unknown mode: $MODE"; usage 1 ;;
 esac

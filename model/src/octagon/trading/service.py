@@ -63,11 +63,16 @@ def local_gateway(url: str) -> str:
 
 
 class Recorder:
-    """Bounded local JSONL journal for later chronological replay (no credentials)."""
-    def __init__(self, directory: Path, max_bytes: int = 25_000_000):
+    """Bounded local JSONL journal for later chronological replay (no credentials).
+
+    The live file plus ``keep`` older ones, about 200 MB in all: enough for a
+    whole fight night now that unchanged fight packets are not written.
+    """
+    def __init__(self, directory: Path, max_bytes: int = 25_000_000, keep: int = 7):
         directory.mkdir(parents=True, exist_ok=True)
         self.path = directory / "observations.jsonl"
         self.max_bytes = max_bytes
+        self.keep = keep
         self.lock = threading.Lock()
 
     def __call__(self, kind: str, data):
@@ -75,10 +80,10 @@ class Recorder:
         encoded = json.dumps(row, allow_nan=False, separators=(",", ":")) + "\n"
         with self.lock:
             if self.path.exists() and self.path.stat().st_size + len(encoded.encode()) > self.max_bytes:
-                for number in range(3, 0, -1):
+                for number in range(self.keep, 0, -1):
                     old = self.path.with_suffix(f".jsonl.{number}")
                     if old.exists():
-                        if number == 3:
+                        if number == self.keep:
                             old.unlink()
                         else:
                             old.replace(self.path.with_suffix(f".jsonl.{number + 1}"))

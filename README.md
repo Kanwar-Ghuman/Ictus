@@ -35,6 +35,9 @@ One command starts the ESPN fight feed, the bot, and the dashboard.
 ./ictus.sh live 20      # real money; hard $20 cap on the event
 ./ictus.sh demo         # Kalshi demo account
 ./ictus.sh stop         # stop whatever an earlier run left running
+
+./ictus.sh prepare      # the day before: newest results, refit, this weekend's predictions
+./ictus.sh check        # read-only readiness check; add "live 20" to check the Kalshi account
 ```
 
 Open [http://localhost:3000](http://localhost:3000), set a spend limit, press **Start**.
