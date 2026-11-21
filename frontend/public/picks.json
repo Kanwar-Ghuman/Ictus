@@ -5,14 +5,14 @@
     {
       "f1": "Jiri Prochazka",
       "f2": "Navajo Stirling",
-      "p_f1": 0.3092927158943549,
+      "p_f1": 0.2785062938901392,
       "line": null,
       "pick": {
         "winner": "Navajo Stirling",
-        "confidence": 0.6907072841056451,
+        "confidence": 0.7214937061098607,
         "method": "KO/TKO",
         "round": 1,
-        "exact_probability": 0.15110565725457137
+        "exact_probability": 0.17153381676047366
       },
       "weight_class": "Light Heavyweight",
       "result": null,
@@ -32,14 +32,14 @@
     {
       "f1": "Aljamain Sterling",
       "f2": "Kevin Vallejos",
-      "p_f1": 0.5186105072129219,
+      "p_f1": 0.5758163834404687,
       "line": null,
       "pick": {
         "winner": "Aljamain Sterling",
-        "confidence": 0.5186105072129219,
+        "confidence": 0.5758163834404687,
         "method": "DEC",
         "round": null,
-        "exact_probability": 0.2960291919795311
+        "exact_probability": 0.3293057319841922
       },
       "weight_class": "Featherweight",
       "result": null,
@@ -59,14 +59,14 @@
     {
       "f1": "Dan Hooker",
       "f2": "Brian Ortega",
-      "p_f1": 0.4807696441235762,
+      "p_f1": 0.49338789708490566,
       "line": null,
       "pick": {
         "winner": "Brian Ortega",
-        "confidence": 0.5192303558764237,
+        "confidence": 0.5066121029150943,
         "method": "DEC",
         "round": null,
-        "exact_probability": 0.22443270045729863
+        "exact_probability": 0.21796123089493114
       },
       "weight_class": "Lightweight",
       "result": null,
@@ -86,14 +86,14 @@
     {
       "f1": "Kyoji Horiguchi",
       "f2": "Asu Almabayev",
-      "p_f1": 0.6155379437838113,
+      "p_f1": 0.6338176745961634,
       "line": null,
       "pick": {
         "winner": "Kyoji Horiguchi",
-        "confidence": 0.6155379437838113,
+        "confidence": 0.6338176745961634,
         "method": "DEC",
         "round": null,
-        "exact_probability": 0.4456594812856662
+        "exact_probability": 0.42429805113601704
       },
       "weight_class": "Flyweight",
       "result": null,
@@ -113,14 +113,14 @@
     {
       "f1": "Jared Cannonier",
       "f2": "Ikram Aliskerov",
-      "p_f1": 0.1307040959715144,
+      "p_f1": 0.1980538920711969,
       "line": null,
       "pick": {
         "winner": "Ikram Aliskerov",
-        "confidence": 0.8692959040284856,
+        "confidence": 0.801946107928803,
         "method": "KO/TKO",
         "round": 1,
-        "exact_probability": 0.20277920212876696
+        "exact_probability": 0.18355427648431316
       },
       "weight_class": "Middleweight",
       "result": null,
@@ -140,14 +140,14 @@
     {
       "f1": "Aleksandre Topuria",
       "f2": "Santiago Luna",
-      "p_f1": 0.2881482538312659,
+      "p_f1": 0.2588475036261785,
       "line": null,
       "pick": {
         "winner": "Santiago Luna",
-        "confidence": 0.7118517461687341,
+        "confidence": 0.7411524963738215,
         "method": "DEC",
         "round": null,
-        "exact_probability": 0.318432210164762
+        "exact_probability": 0.3417372398130597
       },
       "weight_class": "Bantamweight",
       "result": null,
@@ -167,14 +167,14 @@
     {
       "f1": "Shamil Gaziev",
       "f2": "Tallison Teixeira",
-      "p_f1": 0.3114849070140515,
+      "p_f1": 0.30291512373947516,
       "line": null,
       "pick": {
         "winner": "Tallison Teixeira",
-        "confidence": 0.6885150929859485,
+        "confidence": 0.6970848762605248,
         "method": "KO/TKO",
         "round": 1,
-        "exact_probability": 0.27683236863730987
+        "exact_probability": 0.2644090423031883
       },
       "weight_class": "Heavyweight",
       "result": null,
@@ -194,14 +194,14 @@
     {
       "f1": "Amir Albazi",
       "f2": "Alessandro Costa",
-      "p_f1": 0.5553521475764199,
+      "p_f1": 0.6134736348278651,
       "line": null,
       "pick": {
         "winner": "Amir Albazi",
-        "confidence": 0.5553521475764199,
+        "confidence": 0.6134736348278651,
         "method": "DEC",
         "round": null,
-        "exact_probability": 0.2998000832020064
+        "exact_probability": 0.3411235414029798
       },
       "weight_class": "Flyweight",
       "result": null,
@@ -221,16 +221,16 @@
     {
       "f1": "Jake Matthews",
       "f2": "Tahir Abdullayev",
-      "p_f1": 0.5335990185146618,
+      "p_f1": 0.5767976891230382,
       "line": null,
       "pick": {
         "winner": "Jake Matthews",
-        "confidence": 0.5335990185146618,
+        "confidence": 0.5767976891230382,
         "method": "DEC",
         "round": null,
-        "exact_probability": 0.2929047834550383
+        "exact_probability": 0.265219608214563
       },
-      "weight_class": "Welterweight",
+      "weight_class": "Catchweight (172 lb)",
       "result": null,
       "bout_id": null,
       "status": null,
@@ -248,14 +248,14 @@
     {
       "f1": "Nikolas Motta",
       "f2": "Dom Mar Fan",
-      "p_f1": 0.4349019555439351,
+      "p_f1": 0.3935622974265252,
       "line": null,
       "pick": {
         "winner": "Dom Mar Fan",
-        "confidence": 0.5650980444560649,
+        "confidence": 0.6064377025734748,
         "method": "KO/TKO",
         "round": 1,
-        "exact_probability": 0.18245928478388623
+        "exact_probability": 0.18740526956089
       },
       "weight_class": "Lightweight",
       "result": null,
@@ -275,14 +275,14 @@
     {
       "f1": "Diyar Nurgozhay",
       "f2": "Alik Lorenz",
-      "p_f1": 0.6910825779267583,
+      "p_f1": 0.7285367035348344,
       "line": null,
       "pick": {
         "winner": "Diyar Nurgozhay",
-        "confidence": 0.6910825779267583,
+        "confidence": 0.7285367035348344,
         "method": "KO/TKO",
         "round": 1,
-        "exact_probability": 0.22094941531172924
+        "exact_probability": 0.22871330165627207
       },
       "weight_class": "Light Heavyweight",
       "result": null,
@@ -302,14 +302,14 @@
     {
       "f1": "Shoaib Yousaf",
       "f2": "John Mitchell",
-      "p_f1": 0.4484536082474227,
+      "p_f1": 0.43774069319640574,
       "line": null,
       "pick": {
         "winner": "John Mitchell",
-        "confidence": 0.5515463917525774,
+        "confidence": 0.5622593068035943,
         "method": "KO/TKO",
         "round": 1,
-        "exact_probability": 0.2013196667900255
+        "exact_probability": 0.19363583515720456
       },
       "weight_class": "Lightweight",
       "result": null,
