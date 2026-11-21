@@ -302,14 +302,14 @@
     {
       "f1": "Shoaib Yousaf",
       "f2": "John Mitchell",
-      "p_f1": 0.43774069319640574,
+      "p_f1": 0.43958868894601544,
       "line": null,
       "pick": {
         "winner": "John Mitchell",
-        "confidence": 0.5622593068035943,
+        "confidence": 0.5604113110539846,
         "method": "KO/TKO",
         "round": 1,
-        "exact_probability": 0.19363583515720456
+        "exact_probability": 0.19299940602919788
       },
       "weight_class": "Lightweight",
       "result": null,
