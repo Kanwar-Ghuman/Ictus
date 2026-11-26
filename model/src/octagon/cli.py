@@ -311,9 +311,9 @@ def cmd_fetch_card(args: argparse.Namespace, cfg: dict) -> Path:
         iso_date = args.date or raise_missing_date()
     else:
         page, event_name, iso_date = next_event()
-    bouts = fight_card(page)
+    bouts, left_off, official_read = fight_card(page, iso_date)
     if not bouts:
-        raise SystemExit(f"No announced bouts parsed from Wikipedia page '{page}'.")
+        raise SystemExit(f"No bouts parsed from Wikipedia page '{page}'.")
 
     card = card_yaml(event_name, iso_date, bouts)
     # Fold accents before slugifying, or 'Medić' becomes 'medi'.
@@ -328,6 +328,12 @@ def cmd_fetch_card(args: argparse.Namespace, cfg: dict) -> Path:
     for b in bouts:
         print(f"  {b['weight_class']}: {b['fighter1']} vs. {b['fighter2']}"
               + ("  [title]" if b["title_fight"] else ""))
+    if not official_read:
+        print("\nThe official card could not be read, so reported bouts were kept.")
+    elif left_off:
+        print("\nLeft off — not on the official card:")
+        for b in left_off:
+            print(f"  {b['weight_class']}: {b['fighter1']} vs. {b['fighter2']}")
     print(f"\nWrote {out}")
     print("Review the names (Wikipedia spellings can differ from ufcstats).")
     print("\n=== fetch-odds ===")
