@@ -1,146 +1,23 @@
 {
-  "event": "UFC Fight Night: Proch\u00e1zka vs. Stirling",
-  "date": "2026-11-21",
+  "event": "UFC Fight Night: Adesanya vs. Magomedov",
+  "date": "2026-12-05",
   "fights": [
     {
-      "f1": "Jiri Prochazka",
-      "f2": "Navajo Stirling",
-      "p_f1": 0.2785062938901392,
+      "f1": "Israel Adesanya",
+      "f2": "Shara Magomedov",
+      "p_f1": 0.43336248804428334,
       "line": null,
       "pick": {
-        "winner": "Navajo Stirling",
-        "confidence": 0.7214937061098607,
-        "method": "KO/TKO",
-        "round": 1,
-        "exact_probability": 0.17153381676047366
-      },
-      "weight_class": "Light Heavyweight",
-      "result": {
-        "method": "KO/TKO",
-        "round": 2
-      },
-      "bout_id": null,
-      "status": "final",
-      "round": null,
-      "ticker": null,
-      "yes_fighter": null,
-      "yes_bid": null,
-      "yes_ask": null,
-      "rules_primary": null,
-      "rules_secondary": null,
-      "include": false,
-      "note": "",
-      "winner": "Navajo Stirling"
-    },
-    {
-      "f1": "Aljamain Sterling",
-      "f2": "Kevin Vallejos",
-      "p_f1": 0.5758163834404687,
-      "line": null,
-      "pick": {
-        "winner": "Aljamain Sterling",
-        "confidence": 0.5758163834404687,
+        "winner": "Shara Magomedov",
+        "confidence": 0.5666375119557167,
         "method": "DEC",
         "round": null,
-        "exact_probability": 0.3293057319841922
-      },
-      "weight_class": "Featherweight",
-      "result": {
-        "method": "Decision",
-        "round": 3
-      },
-      "bout_id": null,
-      "status": "final",
-      "round": null,
-      "ticker": null,
-      "yes_fighter": null,
-      "yes_bid": null,
-      "yes_ask": null,
-      "rules_primary": null,
-      "rules_secondary": null,
-      "include": false,
-      "note": "",
-      "winner": "Kevin Vallejos"
-    },
-    {
-      "f1": "Dan Hooker",
-      "f2": "Brian Ortega",
-      "p_f1": 0.49338789708490566,
-      "line": null,
-      "pick": {
-        "winner": "Brian Ortega",
-        "confidence": 0.5066121029150943,
-        "method": "DEC",
-        "round": null,
-        "exact_probability": 0.21796123089493114
-      },
-      "weight_class": "Lightweight",
-      "result": {
-        "method": "Decision",
-        "round": 3
-      },
-      "bout_id": null,
-      "status": "final",
-      "round": null,
-      "ticker": null,
-      "yes_fighter": null,
-      "yes_bid": null,
-      "yes_ask": null,
-      "rules_primary": null,
-      "rules_secondary": null,
-      "include": false,
-      "note": "",
-      "winner": "Dan Hooker"
-    },
-    {
-      "f1": "Kyoji Horiguchi",
-      "f2": "Asu Almabayev",
-      "p_f1": 0.6338176745961634,
-      "line": null,
-      "pick": {
-        "winner": "Kyoji Horiguchi",
-        "confidence": 0.6338176745961634,
-        "method": "DEC",
-        "round": null,
-        "exact_probability": 0.42429805113601704
-      },
-      "weight_class": "Flyweight",
-      "result": {
-        "method": "Decision",
-        "round": 3
-      },
-      "bout_id": null,
-      "status": "final",
-      "round": null,
-      "ticker": null,
-      "yes_fighter": null,
-      "yes_bid": null,
-      "yes_ask": null,
-      "rules_primary": null,
-      "rules_secondary": null,
-      "include": false,
-      "note": "",
-      "winner": "Kyoji Horiguchi"
-    },
-    {
-      "f1": "Jared Cannonier",
-      "f2": "Ikram Aliskerov",
-      "p_f1": 0.1980538920711969,
-      "line": null,
-      "pick": {
-        "winner": "Ikram Aliskerov",
-        "confidence": 0.801946107928803,
-        "method": "KO/TKO",
-        "round": 1,
-        "exact_probability": 0.18355427648431316
+        "exact_probability": 0.2610372567256501
       },
       "weight_class": "Middleweight",
-      "result": {
-        "method": "Decision",
-        "round": 3
-      },
+      "result": null,
       "bout_id": null,
-      "status": "final",
+      "status": null,
       "round": null,
       "ticker": null,
       "yes_fighter": null,
@@ -150,27 +27,24 @@
       "rules_secondary": null,
       "include": false,
       "note": "",
-      "winner": "Ikram Aliskerov"
+      "winner": null
     },
     {
-      "f1": "Aleksandre Topuria",
-      "f2": "Santiago Luna",
-      "p_f1": 0.2588475036261785,
+      "f1": "Ian Machado Garry",
+      "f2": "Yaroslav Amosov",
+      "p_f1": 0.5799444781748473,
       "line": null,
       "pick": {
-        "winner": "Santiago Luna",
-        "confidence": 0.7411524963738215,
+        "winner": "Ian Machado Garry",
+        "confidence": 0.5799444781748473,
         "method": "DEC",
         "round": null,
-        "exact_probability": 0.3417372398130597
+        "exact_probability": 0.3327166203247958
       },
-      "weight_class": "Bantamweight",
-      "result": {
-        "method": "Split decision",
-        "round": 3
-      },
+      "weight_class": "Welterweight",
+      "result": null,
       "bout_id": null,
-      "status": "final",
+      "status": null,
       "round": null,
       "ticker": null,
       "yes_fighter": null,
@@ -180,27 +54,51 @@
       "rules_secondary": null,
       "include": false,
       "note": "",
-      "winner": "Santiago Luna"
+      "winner": null
     },
     {
-      "f1": "Shamil Gaziev",
-      "f2": "Tallison Teixeira",
-      "p_f1": 0.30291512373947516,
+      "f1": "Levan Chokheli",
+      "f2": "Islam Dulatov",
+      "p_f1": 0.4147461556770906,
       "line": null,
       "pick": {
-        "winner": "Tallison Teixeira",
-        "confidence": 0.6970848762605248,
+        "winner": "Islam Dulatov",
+        "confidence": 0.5852538443229094,
         "method": "KO/TKO",
         "round": 1,
-        "exact_probability": 0.2644090423031883
+        "exact_probability": 0.20608031947303582
+      },
+      "weight_class": "Welterweight",
+      "result": null,
+      "bout_id": null,
+      "status": null,
+      "round": null,
+      "ticker": null,
+      "yes_fighter": null,
+      "yes_bid": null,
+      "yes_ask": null,
+      "rules_primary": null,
+      "rules_secondary": null,
+      "include": false,
+      "note": "",
+      "winner": null
+    },
+    {
+      "f1": "Serghei Spivac",
+      "f2": "Mario Pinto",
+      "p_f1": 0.2521153142617242,
+      "line": null,
+      "pick": {
+        "winner": "Mario Pinto",
+        "confidence": 0.7478846857382758,
+        "method": "KO/TKO",
+        "round": 1,
+        "exact_probability": 0.2068047677754339
       },
       "weight_class": "Heavyweight",
-      "result": {
-        "method": "Decision",
-        "round": 3
-      },
+      "result": null,
       "bout_id": null,
-      "status": "final",
+      "status": null,
       "round": null,
       "ticker": null,
       "yes_fighter": null,
@@ -210,87 +108,24 @@
       "rules_secondary": null,
       "include": false,
       "note": "",
-      "winner": "Tallison Teixeira"
+      "winner": null
     },
     {
-      "f1": "Amir Albazi",
-      "f2": "Alessandro Costa",
-      "p_f1": 0.6134736348278651,
+      "f1": "Mairon Santos",
+      "f2": "Akbar Abdullaev",
+      "p_f1": 0.28329809725158567,
       "line": null,
       "pick": {
-        "winner": "Amir Albazi",
-        "confidence": 0.6134736348278651,
+        "winner": "Akbar Abdullaev",
+        "confidence": 0.7167019027484143,
         "method": "DEC",
         "round": null,
-        "exact_probability": 0.3411235414029798
-      },
-      "weight_class": "Flyweight",
-      "result": {
-        "method": "Submission",
-        "round": 3
-      },
-      "bout_id": null,
-      "status": "final",
-      "round": null,
-      "ticker": null,
-      "yes_fighter": null,
-      "yes_bid": null,
-      "yes_ask": null,
-      "rules_primary": null,
-      "rules_secondary": null,
-      "include": false,
-      "note": "",
-      "winner": "Amir Albazi"
-    },
-    {
-      "f1": "Jake Matthews",
-      "f2": "Tahir Abdullayev",
-      "p_f1": 0.5767976891230382,
-      "line": null,
-      "pick": {
-        "winner": "Jake Matthews",
-        "confidence": 0.5767976891230382,
-        "method": "DEC",
-        "round": null,
-        "exact_probability": 0.265219608214563
-      },
-      "weight_class": "Catchweight (172 lb)",
-      "result": {
-        "method": "Decision",
-        "round": 3
-      },
-      "bout_id": null,
-      "status": "final",
-      "round": null,
-      "ticker": null,
-      "yes_fighter": null,
-      "yes_bid": null,
-      "yes_ask": null,
-      "rules_primary": null,
-      "rules_secondary": null,
-      "include": false,
-      "note": "",
-      "winner": "Tahir Abdullayev"
-    },
-    {
-      "f1": "Nikolas Motta",
-      "f2": "Dom Mar Fan",
-      "p_f1": 0.3935622974265252,
-      "line": null,
-      "pick": {
-        "winner": "Dom Mar Fan",
-        "confidence": 0.6064377025734748,
-        "method": "KO/TKO",
-        "round": 1,
-        "exact_probability": 0.18740526956089
+        "exact_probability": 0.3292137970289731
       },
       "weight_class": "Lightweight",
-      "result": {
-        "method": "Decision",
-        "round": 3
-      },
+      "result": null,
       "bout_id": null,
-      "status": "final",
+      "status": null,
       "round": null,
       "ticker": null,
       "yes_fighter": null,
@@ -300,27 +135,24 @@
       "rules_secondary": null,
       "include": false,
       "note": "",
-      "winner": "Dom Mar Fan"
+      "winner": null
     },
     {
-      "f1": "Diyar Nurgozhay",
-      "f2": "Alik Lorenz",
-      "p_f1": 0.7285367035348344,
+      "f1": "Magomed Tuchalov",
+      "f2": "Ion Cutelaba",
+      "p_f1": 0.6019208109011982,
       "line": null,
       "pick": {
-        "winner": "Diyar Nurgozhay",
-        "confidence": 0.7285367035348344,
+        "winner": "Magomed Tuchalov",
+        "confidence": 0.6019208109011982,
         "method": "KO/TKO",
         "round": 1,
-        "exact_probability": 0.22871330165627207
+        "exact_probability": 0.15427909396094402
       },
       "weight_class": "Light Heavyweight",
-      "result": {
-        "method": "KO/TKO",
-        "round": 2
-      },
+      "result": null,
       "bout_id": null,
-      "status": "final",
+      "status": null,
       "round": null,
       "ticker": null,
       "yes_fighter": null,
@@ -330,27 +162,24 @@
       "rules_secondary": null,
       "include": false,
       "note": "",
-      "winner": "Diyar Nurgozhay"
+      "winner": null
     },
     {
-      "f1": "Shoaib Yousaf",
-      "f2": "John Mitchell",
-      "p_f1": 0.43958868894601544,
+      "f1": "Luke Riley",
+      "f2": "Gabriel Santos",
+      "p_f1": 0.6208702294437859,
       "line": null,
       "pick": {
-        "winner": "John Mitchell",
-        "confidence": 0.5604113110539846,
+        "winner": "Luke Riley",
+        "confidence": 0.6208702294437859,
         "method": "KO/TKO",
         "round": 1,
-        "exact_probability": 0.19299940602919788
+        "exact_probability": 0.19682896488191226
       },
-      "weight_class": "Lightweight",
-      "result": {
-        "method": "KO/TKO",
-        "round": 1
-      },
+      "weight_class": "Featherweight",
+      "result": null,
       "bout_id": null,
-      "status": "final",
+      "status": null,
       "round": null,
       "ticker": null,
       "yes_fighter": null,
@@ -360,7 +189,223 @@
       "rules_secondary": null,
       "include": false,
       "note": "",
-      "winner": "John Mitchell"
+      "winner": null
+    },
+    {
+      "f1": "Bruno Silva",
+      "f2": "Jafel Filho",
+      "p_f1": 0.3669079539360717,
+      "line": null,
+      "pick": {
+        "winner": "Jafel Filho",
+        "confidence": 0.6330920460639283,
+        "method": "SUB",
+        "round": 1,
+        "exact_probability": 0.17132612363749158
+      },
+      "weight_class": "Flyweight",
+      "result": null,
+      "bout_id": null,
+      "status": null,
+      "round": null,
+      "ticker": null,
+      "yes_fighter": null,
+      "yes_bid": null,
+      "yes_ask": null,
+      "rules_primary": null,
+      "rules_secondary": null,
+      "include": false,
+      "note": "",
+      "winner": null
+    },
+    {
+      "f1": "Uran Satybaldiev",
+      "f2": "Ivan Gnizditskiy",
+      "p_f1": 0.6143030389653023,
+      "line": null,
+      "pick": {
+        "winner": "Uran Satybaldiev",
+        "confidence": 0.6143030389653023,
+        "method": "KO/TKO",
+        "round": 1,
+        "exact_probability": 0.17407312768028707
+      },
+      "weight_class": "Light Heavyweight",
+      "result": null,
+      "bout_id": null,
+      "status": null,
+      "round": null,
+      "ticker": null,
+      "yes_fighter": null,
+      "yes_bid": null,
+      "yes_ask": null,
+      "rules_primary": null,
+      "rules_secondary": null,
+      "include": false,
+      "note": "",
+      "winner": null
+    },
+    {
+      "f1": "Marco Tulio",
+      "f2": "JunYong Park",
+      "p_f1": 0.6221738890645053,
+      "line": null,
+      "pick": {
+        "winner": "Marco Tulio",
+        "confidence": 0.6221738890645053,
+        "method": "DEC",
+        "round": null,
+        "exact_probability": 0.290227980046244
+      },
+      "weight_class": "Middleweight",
+      "result": null,
+      "bout_id": null,
+      "status": null,
+      "round": null,
+      "ticker": null,
+      "yes_fighter": null,
+      "yes_bid": null,
+      "yes_ask": null,
+      "rules_primary": null,
+      "rules_secondary": null,
+      "include": false,
+      "note": "",
+      "winner": null
+    },
+    {
+      "f1": "Pavel Andrusca",
+      "f2": "Mahammadali Osmanli",
+      "p_f1": 0.8133560418703563,
+      "line": null,
+      "pick": {
+        "winner": "Pavel Andrusca",
+        "confidence": 0.8133560418703563,
+        "method": "DEC",
+        "round": null,
+        "exact_probability": 0.3367255038266127
+      },
+      "weight_class": "Bantamweight",
+      "result": null,
+      "bout_id": null,
+      "status": null,
+      "round": null,
+      "ticker": null,
+      "yes_fighter": null,
+      "yes_bid": null,
+      "yes_ask": null,
+      "rules_primary": null,
+      "rules_secondary": null,
+      "include": false,
+      "note": "",
+      "winner": null
+    },
+    {
+      "f1": "Modestino Rodrigues",
+      "f2": "Matthieu Duclos",
+      "p_f1": 0.40789231779413027,
+      "line": null,
+      "pick": {
+        "winner": "Matthieu Duclos",
+        "confidence": 0.5921076822058697,
+        "method": "KO/TKO",
+        "round": 1,
+        "exact_probability": 0.18473307847965045
+      },
+      "weight_class": "Middleweight",
+      "result": null,
+      "bout_id": null,
+      "status": null,
+      "round": null,
+      "ticker": null,
+      "yes_fighter": null,
+      "yes_bid": null,
+      "yes_ask": null,
+      "rules_primary": null,
+      "rules_secondary": null,
+      "include": false,
+      "note": "",
+      "winner": null
+    },
+    {
+      "f1": "Abdul Hussein",
+      "f2": "Hecher Sosa",
+      "p_f1": 0.4299407797836739,
+      "line": null,
+      "pick": {
+        "winner": "Hecher Sosa",
+        "confidence": 0.5700592202163262,
+        "method": "DEC",
+        "round": null,
+        "exact_probability": 0.365093249122526
+      },
+      "weight_class": "Bantamweight",
+      "result": null,
+      "bout_id": null,
+      "status": null,
+      "round": null,
+      "ticker": null,
+      "yes_fighter": null,
+      "yes_bid": null,
+      "yes_ask": null,
+      "rules_primary": null,
+      "rules_secondary": null,
+      "include": false,
+      "note": "",
+      "winner": null
+    },
+    {
+      "f1": "Mateusz Rebecki",
+      "f2": "Elves Brener",
+      "p_f1": 0.6643314665062612,
+      "line": null,
+      "pick": {
+        "winner": "Mateusz Rebecki",
+        "confidence": 0.6643314665062612,
+        "method": "DEC",
+        "round": null,
+        "exact_probability": 0.41900846695123567
+      },
+      "weight_class": "Lightweight",
+      "result": null,
+      "bout_id": null,
+      "status": null,
+      "round": null,
+      "ticker": null,
+      "yes_fighter": null,
+      "yes_bid": null,
+      "yes_ask": null,
+      "rules_primary": null,
+      "rules_secondary": null,
+      "include": false,
+      "note": "",
+      "winner": null
+    },
+    {
+      "f1": "Anvarbek Daniyalbekov",
+      "f2": "Robert Bryczek",
+      "p_f1": 0.4905430290468051,
+      "line": null,
+      "pick": {
+        "winner": "Robert Bryczek",
+        "confidence": 0.5094569709531949,
+        "method": "KO/TKO",
+        "round": 1,
+        "exact_probability": 0.15682280950479435
+      },
+      "weight_class": "Middleweight",
+      "result": null,
+      "bout_id": null,
+      "status": null,
+      "round": null,
+      "ticker": null,
+      "yes_fighter": null,
+      "yes_bid": null,
+      "yes_ask": null,
+      "rules_primary": null,
+      "rules_secondary": null,
+      "include": false,
+      "note": "",
+      "winner": null
     }
   ]
 }
