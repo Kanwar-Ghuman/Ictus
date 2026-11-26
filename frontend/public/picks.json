@@ -379,33 +379,6 @@
       "include": false,
       "note": "",
       "winner": null
-    },
-    {
-      "f1": "Anvarbek Daniyalbekov",
-      "f2": "Robert Bryczek",
-      "p_f1": 0.4905430290468051,
-      "line": null,
-      "pick": {
-        "winner": "Robert Bryczek",
-        "confidence": 0.5094569709531949,
-        "method": "KO/TKO",
-        "round": 1,
-        "exact_probability": 0.15682280950479435
-      },
-      "weight_class": "Middleweight",
-      "result": null,
-      "bout_id": null,
-      "status": null,
-      "round": null,
-      "ticker": null,
-      "yes_fighter": null,
-      "yes_bid": null,
-      "yes_ask": null,
-      "rules_primary": null,
-      "rules_secondary": null,
-      "include": false,
-      "note": "",
-      "winner": null
     }
   ]
 }
